@@ -529,7 +529,8 @@ enum ha_base_keytype {
 #define HA_ERR_SEQUENCE_RUN_OUT   196
 #define HA_ERR_COMMIT_ERROR       197
 #define HA_ERR_PARTITION_LIST     198
-#define HA_ERR_LAST               198  /* Copy of last error nr * */
+#define HA_ERR_WRONG_ROW_END      199  /* System Versioning row_end <= row_start */
+#define HA_ERR_LAST               199  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

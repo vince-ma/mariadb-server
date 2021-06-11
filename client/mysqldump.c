@@ -4317,9 +4317,9 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
 
     if (versioned && !opt_xml)
     {
+      // FIXME: update version
       fprintf(md_result_file,
-              "/*!100600 SET force_fields_visible= ON */;\n"
-              "/*!100600 FLUSH LOCAL TABLES */;\n");
+              "/*!100600 SET system_versioning_insert_history= ON */;\n");
       check_io(md_result_file);
     }
     if (opt_lock)
@@ -4621,9 +4621,9 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
     }
     if (versioned && !opt_xml)
     {
+      // FIXME: update version
       fprintf(md_result_file,
-              "/*!100600 SET force_fields_visible= OFF */;\n"
-              "/*!100600 FLUSH LOCAL TABLES */;\n");
+              "/*!100600 SET system_versioning_insert_history= OFF */;\n");
       check_io(md_result_file);
     }
     mysql_free_result(res);

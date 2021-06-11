@@ -299,8 +299,6 @@ The following specify which files/extra groups are read (specified before remain
  --flush             Flush MyISAM tables to disk between SQL commands
  --flush-time=#      A dedicated thread is created to flush all tables at the
  given interval
- --force-fields-visible 
- Make invisible fields visible on next table open
  --ft-boolean-syntax=name 
  List of operators for MATCH ... AGAINST ( ... IN BOOLEAN
  MODE)
@@ -1352,6 +1350,8 @@ The following specify which files/extra groups are read (specified before remain
  Versioning ALTER TABLE mode. ERROR: Fail ALTER with
  error; KEEP: Keep historical system rows and subject them
  to ALTER
+ --system-versioning-insert-history 
+ Allows direct inserts into ROW_START and ROW_END columns
  --table-cache=#     Deprecated; use --table-open-cache instead.
  --table-definition-cache=# 
  The number of cached table definitions
@@ -1538,7 +1538,6 @@ extra-port 0
 flashback FALSE
 flush FALSE
 flush-time 0
-force-fields-visible FALSE
 ft-boolean-syntax + -><()~*:""&|
 ft-max-word-len 84
 ft-min-word-len 4
@@ -1819,6 +1818,7 @@ sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
 system-versioning-alter-history ERROR
+system-versioning-insert-history FALSE
 table-definition-cache 400
 tc-heuristic-recover OFF
 tcp-keepalive-interval 0

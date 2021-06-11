@@ -22,9 +22,9 @@ create or replace function check_fields(x int, row_start timestamp(6), row_end t
               if (row_start = @s1 and row_end = @e1, '[CORRECT]', '[WRONG]'),
               if (x = 2 and row_start = @s2 and row_end = @e2, '[CORRECT]', '[WRONG]'));
 
-set force_fields_visible= ON; flush tables;
+set @@system_versioning_insert_history= 1;
 insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
-set force_fields_visible= OFF; flush tables;
+set @@system_versioning_insert_history= 0;
 --echo # t2 has the same data as t1
 select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
 
@@ -75,11 +75,11 @@ drop table t1;
 create or replace table t1 (x int) with system versioning;
 delete from t2;
 delete history from t2;
-set force_fields_visible= ON; flush tables;
+set @@system_versioning_insert_history= 1;
 --replace_result $TMP TMP
 eval load xml infile '$TMP/dump_history.xml' into table t1;
 --exec cp $TMP/dump_history.xml /tmp
-set force_fields_visible= OFF; flush tables;
+set @@system_versioning_insert_history= 0;
 --echo ## History is now loaded as current data (TODO)
 select *, check_row_ts(row_start, row_end) from t1 for system_time all;
 # TODO: check mysqlimport
@@ -94,12 +94,12 @@ drop tables t1, t2;
 show create table t1;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t2;
-set force_fields_visible= ON; flush tables;
+set @@system_versioning_insert_history= 1;
 --replace_result $TMP tmp
 eval load data infile '$TMP/t1.txt' into table t1 (x, row_start, row_end);
 --replace_result $TMP tmp
 eval load data infile '$TMP/t2.txt' into table t2 (x, row_start, row_end);
-set force_fields_visible= OFF; flush tables;
+set @@system_versioning_insert_history= 0;
 select *, check_row_ts(row_start, row_end) from t1 for system_time all;
 select *, check_row_ts(row_start, row_end) from t2 for system_time all;
 

@@ -14,11 +14,9 @@ returns char(50) deterministic
 return if (x = 1,
 if (row_start = @s1 and row_end = @e1, '[CORRECT]', '[WRONG]'),
 if (x = 2 and row_start = @s2 and row_end = @e2, '[CORRECT]', '[WRONG]'));
-set force_fields_visible= ON;
-flush tables;
+set @@system_versioning_insert_history= 1;
 insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
-set force_fields_visible= OFF;
-flush tables;
+set @@system_versioning_insert_history= 0;
 # t2 has the same data as t1
 select x, check_fields(x, row_start, row_end) from t2 for system_time all order by x;
 x	check_fields(x, row_start, row_end)
@@ -73,12 +71,10 @@ t2	CREATE TABLE `t2` (
   `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
-set force_fields_visible= ON;
-flush tables;
+set @@system_versioning_insert_history= 1;
 load data infile 'tmp/t1.txt' into table t1 (x, row_start, row_end);
 load data infile 'tmp/t2.txt' into table t2 (x, row_start, row_end);
-set force_fields_visible= OFF;
-flush tables;
+set @@system_versioning_insert_history= 0;
 select *, check_row_ts(row_start, row_end) from t1 for system_time all;
 x	check_row_ts(row_start, row_end)
 1	HISTORICAL ROW

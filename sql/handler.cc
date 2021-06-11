@@ -4560,6 +4560,9 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_PARTITION_LIST:
     my_error(ER_VERS_NOT_ALLOWED, errflag, table->s->db.str, table->s->table_name.str);
     DBUG_VOID_RETURN;
+  case HA_ERR_WRONG_ROW_END:
+    textno= ER_VERS_WRONG_ROW_END;
+    break;
   default:
     {
       /* The error was "unknown" to this function.
@@ -7540,6 +7543,20 @@ int handler::ha_write_row(const uchar *buf)
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
     if ((error= check_duplicate_long_entries(buf)))
       DBUG_RETURN(error);
+  }
+
+  /* Inserting the history row directly, check that ROW_START <= ROW_END */
+  if (table->versioned() && !table->vers_write)
+  {
+    Field *row_start= table->vers_start_field();
+    Field *row_end= table->vers_end_field();
+
+    bitmap_set_bit(table->read_set, row_start->field_index);
+    bitmap_set_bit(table->read_set, row_end->field_index);
+
+    if (!row_end->is_max() &&
+        row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
+      DBUG_RETURN(HA_ERR_WRONG_ROW_END);
   }
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);

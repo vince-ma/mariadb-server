@@ -6040,7 +6040,8 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
 
     if (field->invisible == INVISIBLE_SYSTEM &&
         thd->column_usage != MARK_COLUMNS_READ &&
-        thd->column_usage != COLUMNS_READ)
+        thd->column_usage != COLUMNS_READ &&
+        !thd->vers_insert_history())
       DBUG_RETURN((Field*)0);
   }
   else
@@ -8628,7 +8629,7 @@ fill_record(THD *thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
         rfield->field_index ==  table->next_number_field->field_index)
       table->auto_increment_field_not_null= TRUE;
     const bool skip_sys_field= rfield->vers_sys_field() &&
-      !thd->vers_modify_sys_field();
+      !thd->vers_insert_history();
     if ((rfield->vcol_info || skip_sys_field) &&
         !value->vcol_assignment_allowed_value() &&
         table->s->table_category != TABLE_CATEGORY_TEMPORARY)

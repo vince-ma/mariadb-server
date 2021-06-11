@@ -1042,7 +1042,7 @@ void Query_log_event::pack_info(Protocol *protocol)
                 OPTION_RELAXED_UNIQUE_CHECKS |
                 OPTION_NO_CHECK_CONSTRAINT_CHECKS |
                 OPTION_IF_EXISTS |
-                OPTION_FORCE_FIELDS_VISIBLE))
+                OPTION_INSERT_HISTORY))
   {
     buf.append(STRING_WITH_LEN("set "));
     if (flags2 & OPTION_NO_FOREIGN_KEY_CHECKS)

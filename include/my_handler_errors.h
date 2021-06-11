@@ -109,7 +109,8 @@ static const char *handler_error_messages[]=
   "Sequence has been run out",
   "Sequence values are conflicting",
   "Error during commit",
-  "Cannot select partitions"
+  "Cannot select partitions",
+  "System Versioning wrong ROW_END timestamp"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */

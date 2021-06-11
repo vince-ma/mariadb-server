@@ -7800,8 +7800,10 @@ void THD::set_last_commit_gtid(rpl_gtid &gtid)
 #endif
 }
 
-bool THD::vers_modify_sys_field() const
+bool THD::vers_insert_history() const
 {
+  if (!(variables.option_bits & OPTION_INSERT_HISTORY))
+    return false;
   if (lex->sql_command != SQLCOM_INSERT &&
       lex->sql_command != SQLCOM_INSERT_SELECT &&
       lex->sql_command != SQLCOM_LOAD)

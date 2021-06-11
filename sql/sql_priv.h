@@ -148,7 +148,7 @@
 #define OPTION_RELAXED_UNIQUE_CHECKS    (1ULL << 27) // THD, user, binlog
 #define OPTION_IF_EXISTS                (1ULL << 28) // binlog
 #define OPTION_SCHEMA_TABLE             (1ULL << 29) // SELECT, intern
-#define OPTION_FORCE_FIELDS_VISIBLE     (1ULL << 30)
+#define OPTION_INSERT_HISTORY           (1ULL << 30)
 /** If not set then the thread will ignore all warnings with level notes. */
 #define OPTION_SQL_NOTES                (1ULL << 31) // THD, user
 /**

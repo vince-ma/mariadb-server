@@ -6103,7 +6103,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     if (thd->column_usage == MARK_COLUMNS_WRITE &&
         from_field != view_ref_found &&
         from_field->vers_sys_field() &&
-        thd->vers_modify_sys_field())
+        thd->vers_insert_history())
     {
       DBUG_ASSERT(from_field->table->versioned());
       from_field->table->vers_write= false;
