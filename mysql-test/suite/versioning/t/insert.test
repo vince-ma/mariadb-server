@@ -85,16 +85,33 @@ drop table t2;
 --echo # MDEV-16546 System versioning setting to allow history modification
 --echo #
 set @@session.time_zone='+00:00';
+let $MAX_TIMESTAMP= TIMESTAMP'2038-01-19 03:14:07.999999';
 
-create table t1(x int) with system versioning;
+create table t1(x int primary key) with system versioning;
+create table t2(y int primary key,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
 insert into t1(x) values (1);
+insert into t2(y) values (1);
 --error ER_BAD_FIELD_ERROR
 insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert into t2(y, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 set @@system_versioning_insert_history= 1;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 update t1 set x= x + 1;
+--error ER_BAD_FIELD_ERROR
+update t1 set row_start= '1971-01-01 00:00:00';
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+update t2 set row_start= '1971-01-01 00:00:00';
+--error ER_BAD_FIELD_ERROR
+insert t1 (x) values (2) on duplicate key update x= 3, row_end= '1970-01-01 00:00:00';
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert t2 (y) values (1) on duplicate key update y= 3, row_end= '1970-01-01 00:00:00';
 # this should work, row_start/row_end must be mentioned explicitly:
 insert into t1 values (4);
 insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 00:00:01';
@@ -102,15 +119,58 @@ insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 
 insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:01', '1980-01-01 00:00:00');
 --error ER_VERS_WRONG_ROW_END
 insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:11', '1980-01-01 00:00:11');
+--error ER_VERS_WRONG_ROW_END
+insert into t1(x, row_start) values (8, '1980-01-01 00:00:22');
+# NOTE: having row_start=0 might be useful and can mean
+# "there is no information on when history was started" (an opposite to row_end=MAX_TIMESTAMP)
+--error ER_VERS_WRONG_ROW_END
+insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
 select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
-select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t1 for system_time all where x = 3;
+eval select x, row_start, row_end from t1 for system_time all
+where x > 1 and row_end < $MAX_TIMESTAMP order by x, row_start, row_end;
+set @@system_versioning_insert_history= 0;
 
 --echo ## INSERT..SELECT
 create or replace table t2 like t1;
 set @@system_versioning_insert_history= 1;
 insert into t2 (x, row_start, row_end) select x, row_start, row_end from t1 for system_time all;
 select x, check_row_ts(row_start, row_end) from t2 for system_time all order by x;
-select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t2 for system_time all where x = 3;
+eval select x, row_start, row_end from t2 for system_time all
+where x > 1 and row_end < $MAX_TIMESTAMP order by x, row_start, row_end;
+set @@system_versioning_insert_history= 0;
+
+--echo # REPLACE / REPLACE .. SELECT
+create or replace table t2(a int primary key,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning;
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
+create or replace table t2 (a int primary key) with system versioning;
+--error ER_BAD_FIELD_ERROR
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+--error ER_BAD_FIELD_ERROR
+replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
+set @@system_versioning_insert_history= 1;
+--error ER_VERS_WRONG_ROW_END
+replace into t2 (a, row_start) values (1, '1980-01-01 00:00:00');
+--error ER_VERS_WRONG_ROW_END
+replace into t2 (a, row_end) values (0, '1980-01-01 00:00:00');
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
+select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
+--echo # Changing row_end via REPLACE is NOT possible, we just insert new row:
+# NOTE: because multiple versions of history row with a=1 may exist, so what REPLACE should change?
+replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1990-01-01 00:00:01');
+select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
+--echo # But changing row_start via REPLACE is possible:
+replace into t2 (a, row_start, row_end) values (1, '1971-01-01 00:00:00', '1980-01-01 00:00:01');
+select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
+eval replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1 for system_time all
+where x > 1 and row_end < $MAX_TIMESTAMP;
+select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
 
 --echo # LOAD DATA
 --let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data
