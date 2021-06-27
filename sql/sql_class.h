@@ -5552,7 +5552,7 @@ public:
     lex= backup_lex;
   }
 
-  bool vers_insert_history() const;
+  bool vers_insert_history(const Field *field) const;
 };
 
 

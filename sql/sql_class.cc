@@ -7800,8 +7800,13 @@ void THD::set_last_commit_gtid(rpl_gtid &gtid)
 #endif
 }
 
-bool THD::vers_insert_history() const
+bool THD::vers_insert_history(const Field *field) const
 {
+  if (!field->vers_sys_field())
+    return false;
+  DBUG_ASSERT(field->table->versioned());
+  if (field->table->versioned(VERS_TRX_ID))
+    return false;
   if (!(variables.option_bits & OPTION_INSERT_HISTORY))
     return false;
   if (lex->sql_command != SQLCOM_INSERT &&

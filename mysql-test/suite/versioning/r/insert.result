@@ -167,6 +167,14 @@ where x > 1 and row_end < TIMESTAMP'2038-01-19 03:14:07.999999' order by x, row_
 x	row_start	row_end
 3	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
 5	1980-01-01 00:00:00.000000	1980-01-01 00:00:01.000000
+# Direct insert is not possible for TRX_ID versioning
+create or replace table t2(y int primary key,
+row_start bigint unsigned as row start,
+row_end bigint unsigned as row end,
+period for system_time (row_start, row_end))
+with system versioning engine innodb;
+insert into t2(y, row_start, row_end) values (0, 1, 2);
+ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
 set @@system_versioning_insert_history= 0;
 ## INSERT..SELECT
 create or replace table t2 like t1;

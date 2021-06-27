@@ -128,6 +128,14 @@ insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
 select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
 eval select x, row_start, row_end from t1 for system_time all
 where x > 1 and row_end < $MAX_TIMESTAMP order by x, row_start, row_end;
+--echo # Direct insert is not possible for TRX_ID versioning
+create or replace table t2(y int primary key,
+  row_start bigint unsigned as row start,
+  row_end bigint unsigned as row end,
+  period for system_time (row_start, row_end))
+with system versioning engine innodb;
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+insert into t2(y, row_start, row_end) values (0, 1, 2);
 set @@system_versioning_insert_history= 0;
 
 --echo ## INSERT..SELECT

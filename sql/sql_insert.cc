@@ -1774,8 +1774,7 @@ static int last_uniq_key(TABLE *table,uint keynr)
 int vers_insert_history_row(TABLE *table)
 {
   DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
-  if (!table->vers_write)
-    return 0;
+  DBUG_ASSERT(table->vers_write);
   restore_record(table,record[1]);
 
   // Set Sys_end to now()
@@ -2072,8 +2071,9 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
             !table->file->referenced_by_foreign_key() &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
-          if (table->versioned(VERS_TRX_ID) && table->vers_write)
+          if (table->versioned(VERS_TRX_ID))
           {
+            DBUG_ASSERT(table->vers_write);
             bitmap_set_bit(table->write_set, table->vers_start_field()->field_index);
             table->file->column_bitmaps_signal();
             table->vers_start_field()->store(0, false);
