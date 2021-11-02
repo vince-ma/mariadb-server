@@ -2448,6 +2448,8 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
+  /** @return number of unique columns in FTS_DOC_ID index */
+  unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
