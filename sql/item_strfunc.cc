@@ -1512,7 +1512,7 @@ String *Item_func_random_bytes::val_str(String *str)
     String msg(buf, sizeof(buf), system_charset_info);
     msg.length(0);
     print(&msg, QT_NO_DATA_EXPANSION);
-    my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "length", msg.c_ptr_safe());
+    my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "Length", msg.c_ptr_safe());
     return make_empty_result(str);
   }
 
