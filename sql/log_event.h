@@ -538,9 +538,15 @@ class String;
    OPTION_RELAXED_UNIQUE_CHECKS | OPTION_NOT_AUTOCOMMIT | OPTION_IF_EXISTS | \
    OPTION_INSERT_HISTORY)
 
-#if OPTIONS_WRITTEN_TO_BIN_LOG >= (1ULL << 32)
-#error OPTIONS_WRITTEN_TO_BIN_LOG must NOT exceed 32 bits!
+/* Shouldn't be defined before */
+#define EXPECTED_OPTIONS \
+  ((1ULL << 14) | (1ULL << 26) | (1ULL << 27) | (1ULL << 19) | (1ULL << 28) | \
+   (1ULL << 30))
+
+#if OPTIONS_WRITTEN_TO_BIN_LOG != EXPECTED_OPTIONS
+#error OPTIONS_WRITTEN_TO_BIN_LOG must NOT change their values!
 #endif
+#undef EXPECTED_OPTIONS         /* You shouldn't use this one */
 
 #define CHECKSUM_CRC32_SIGNATURE_LEN 4
 /**

@@ -125,6 +125,8 @@ insert into t1(x, row_start) values (8, '1980-01-01 00:00:22');
 # "there is no information on when history was started" (an opposite to row_end=MAX_TIMESTAMP)
 --error ER_VERS_WRONG_ROW_END
 insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
+--error ER_VERS_WRONG_ROW_END
+eval insert into t1(x, row_end) values (10, $MAX_TIMESTAMP);
 select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
 eval select x, row_start, row_end from t1 for system_time all
 where x > 1 and row_end < $MAX_TIMESTAMP order by x, row_start, row_end;

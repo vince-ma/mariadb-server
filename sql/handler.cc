@@ -7558,10 +7558,9 @@ int handler::ha_write_row(const uchar *buf)
        Inserting the history row directly, check ROW_START <= ROW_END and
        ROW_START is non-zero.
     */
-    if (!row_end->is_max() && (
-          (row_start->cmp(row_start->ptr, row_end->ptr) >= 0) ||
-          row_start->get_date(&ltime, Datetime::Options(
-            TIME_NO_ZERO_DATE, time_round_mode_t(time_round_mode_t::FRAC_NONE)))))
+    if ((row_start->cmp(row_start->ptr, row_end->ptr) >= 0) ||
+         row_start->get_date(&ltime, Datetime::Options(
+           TIME_NO_ZERO_DATE, time_round_mode_t(time_round_mode_t::FRAC_NONE))))
       DBUG_RETURN(HA_ERR_WRONG_ROW_TIMESTAMP);
   }
 
