@@ -10059,5 +10059,3 @@ ER_REMOVED_ORPHAN_TRIGGER
 ER_STORAGE_ENGINE_DISABLED
         eng "Storage engine %s is disabled"
         spa "El motor de almacenaje %s está desactivado"
-ER_VERS_WRONG_ROW_END
-        eng "History record ROW_END <= ROW_START"

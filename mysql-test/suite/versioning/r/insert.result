@@ -126,8 +126,6 @@ insert into t1(x) values (1);
 insert into t2(y) values (1);
 insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 ERROR 42S22: Unknown column 'row_start' in 'field list'
-insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', TIMESTAMP'2038-01-19 03:14:07.999999');
-ERROR 42S22: Unknown column 'row_start' in 'field list'
 insert into t2(y, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 ERROR HY000: The value specified for generated column 'row_start' in table 't2' has been ignored
 set @@system_versioning_insert_history= 1;
@@ -150,15 +148,15 @@ ERROR HY000: The value specified for generated column 'row_end' in table 't2' ha
 insert into t1 values (4);
 insert into t1 set x= 5, row_start= '1980-01-01 00:00:00', row_end= '1980-01-01 00:00:01';
 insert into t1(x, row_start, row_end) values (6, '1980-01-01 00:00:01', '1980-01-01 00:00:00');
-ERROR HY000: History record ROW_END <= ROW_START
+ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:01.000000'
 insert into t1(x, row_start, row_end) values (7, '1980-01-01 00:00:11', '1980-01-01 00:00:11');
-ERROR HY000: History record ROW_END <= ROW_START
+ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:11.000000'
 insert into t1(x, row_start) values (8, '1980-01-01 00:00:22');
-ERROR HY000: History record ROW_END <= ROW_START
+ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:22.000000'
 insert into t1(x, row_end) values (9, '1980-01-01 00:00:33');
-ERROR HY000: History record ROW_END <= ROW_START
+ERROR HY000: Incorrect row_start value: '0000-00-00 00:00:00.000000'
 insert into t1(x, row_end) values (10, TIMESTAMP'2038-01-19 03:14:07.999999');
-ERROR HY000: History record ROW_END <= ROW_START
+ERROR HY000: Incorrect row_start value: '0000-00-00 00:00:00.000000'
 select x, check_row_ts(row_start, row_end) from t1 for system_time all order by x;
 x	check_row_ts(row_start, row_end)
 1	HISTORICAL ROW
@@ -214,9 +212,9 @@ replace into t2 (a, row_start, row_end) select x, row_start, row_end from t1;
 ERROR 42S22: Unknown column 'row_start' in 'field list'
 set @@system_versioning_insert_history= 1;
 replace into t2 (a, row_start) values (1, '1980-01-01 00:00:00');
-ERROR HY000: History record ROW_END <= ROW_START
+ERROR HY000: Incorrect row_start value: '1980-01-01 00:00:00.000000'
 replace into t2 (a, row_end) values (0, '1980-01-01 00:00:00');
-ERROR HY000: History record ROW_END <= ROW_START
+ERROR HY000: Incorrect row_start value: '0000-00-00 00:00:00.000000'
 replace into t2 (a, row_start, row_end) values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 select a, row_start, row_end from t2 for system_time all order by a, row_start, row_end;
 a	row_start	row_end

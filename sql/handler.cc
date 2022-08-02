@@ -4560,9 +4560,6 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_PARTITION_LIST:
     my_error(ER_VERS_NOT_ALLOWED, errflag, table->s->db.str, table->s->table_name.str);
     DBUG_VOID_RETURN;
-  case HA_ERR_WRONG_ROW_TIMESTAMP:
-    textno= ER_VERS_WRONG_ROW_END;
-    break;
   default:
     {
       /* The error was "unknown" to this function.
@@ -7561,7 +7558,12 @@ int handler::ha_write_row(const uchar *buf)
     if ((row_start->cmp(row_start->ptr, row_end->ptr) >= 0) ||
          row_start->get_date(&ltime, Datetime::Options(
            TIME_NO_ZERO_DATE, time_round_mode_t(time_round_mode_t::FRAC_NONE))))
-      DBUG_RETURN(HA_ERR_WRONG_ROW_TIMESTAMP);
+    {
+      String val;
+      row_start->val_str(&val);
+      my_error(ER_WRONG_VALUE, MYF(0), row_start->field_name.str, val.ptr());
+      DBUG_RETURN(HA_ERR_GENERIC);
+    }
   }
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
