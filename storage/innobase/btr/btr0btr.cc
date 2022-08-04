@@ -584,13 +584,6 @@ dberr_t btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
                       bool blob, bool space_latched)
 {
   ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
-#ifdef BTR_CUR_HASH_ADAPT
-  if (block->index && !block->index->freed())
-  {
-    ut_ad(!blob);
-    ut_ad(page_is_leaf(block->page.frame));
-  }
-#endif
   const uint32_t page{block->page.id().page_no()};
   ut_ad(index->table->space_id == block->page.id().space());
   /* The root page is freed by btr_free_root(). */

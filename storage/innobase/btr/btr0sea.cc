@@ -1279,8 +1279,11 @@ fail_and_release_page:
 			index page for which we know that
 			block->buf_fix_count == 0 or it is an index page which
 			has already been removed from the buf_pool.page_hash
-			i.e.: it is in state BUF_BLOCK_REMOVE_HASH */
-void btr_search_drop_page_hash_index(buf_block_t* block)
+			i.e.: it is in state BUF_BLOCK_REMOVE_HASH
+@param[in]	drop_ahi_freed	drop the ahi entries only if the index
+				is freed */
+void btr_search_drop_page_hash_index(buf_block_t* block,
+				     bool drop_ahi_freed)
 {
 	ulint			n_fields;
 	ulint			n_bytes;
@@ -1316,13 +1319,21 @@ retry:
 	auto part = btr_search_sys.get_part(index_id,
 					    block->page.id().space());
 
+	part->latch.rd_lock(SRW_LOCK_CALL);
+
 	dict_index_t* index = block->index;
 	bool is_freed = index && index->freed();
 
 	if (is_freed) {
+		part->latch.rd_unlock();
 		part->latch.wr_lock(SRW_LOCK_CALL);
-	} else {
-		part->latch.rd_lock(SRW_LOCK_CALL);
+		if (block->index != index) {
+			part->latch.wr_unlock();
+			goto retry;
+		}
+	} else if (drop_ahi_freed) {
+		part->latch.rd_unlock();
+		return;
 	}
 
 	assert_block_ahi_valid(block);
@@ -1797,11 +1808,12 @@ drop_exit:
 		return;
 	}
 
+	ahi_latch->rd_lock(SRW_LOCK_CALL);
+
 	if (index->freed()) {
+		ahi_latch->rd_unlock();
 		goto drop_exit;
 	}
-
-	ahi_latch->rd_lock(SRW_LOCK_CALL);
 
 	if (block->index) {
 		uint16_t n_fields = block->curr_n_fields;

@@ -282,9 +282,6 @@ latch_block:
 
 		block->page.fix();
 		block->page.lock.x_lock();
-#ifdef BTR_CUR_HASH_ADAPT
-		ut_ad(!block->index || !block->index->freed());
-#endif
 
 		if (UNIV_LIKELY_NULL(rtr_info)) {
 			rtr_info->tree_savepoints[RTR_MAX_LEVELS + 1] = save;
@@ -7023,9 +7020,6 @@ btr_store_big_rec_extern_fields(
 
 			rec_block->page.fix();
 			rec_block->page.lock.x_lock();
-#ifdef BTR_CUR_HASH_ADAPT
-			ut_ad(!rec_block->index || !rec_block->index->freed());
-#endif
 
 			uint32_t hint_prev = prev_page_no;
 			if (hint_prev == FIL_NULL) {
@@ -7400,9 +7394,6 @@ skip_free:
 		mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 		block->fix();
 		block->page.lock.x_lock();
-#ifdef BTR_CUR_HASH_ADAPT
-		ut_ad(!block->index || !block->index->freed());
-#endif
 
 		const page_t* page = buf_block_get_frame(ext_block);
 

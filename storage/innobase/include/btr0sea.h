@@ -100,8 +100,11 @@ btr_search_move_or_delete_hash_entries(
 			index page for which we know that
 			block->buf_fix_count == 0 or it is an index page which
 			has already been removed from the buf_pool.page_hash
-			i.e.: it is in state BUF_BLOCK_REMOVE_HASH */
-void btr_search_drop_page_hash_index(buf_block_t* block);
+			i.e.: it is in state BUF_BLOCK_REMOVE_HASH
+@param[in]	drop_ahi_freed	drop the ahi entries only if the index
+				is freed */
+void btr_search_drop_page_hash_index(buf_block_t* block,
+				     bool drop_ahi_freed=false);
 
 /** Drop possible adaptive hash index entries when a page is evicted
 from the buffer pool or freed in a file, or the index is being dropped.
