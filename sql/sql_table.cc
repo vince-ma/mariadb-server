@@ -8891,10 +8891,32 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                  alter_info->drop_list.head()->name);
         goto err;
       case Alter_drop::FOREIGN_KEY:
+        /* If we are dropping a foreign key and expect it to exists,
+        we can now check does it exists and if not report a error. */
+        if (!drop->drop_if_exists)
+        {
+          List <FOREIGN_KEY_INFO> fk_child_key_list;
+          FOREIGN_KEY_INFO *f_key;
+          table->file->get_foreign_key_list(thd, &fk_child_key_list);
+          List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+          while ((f_key= fk_key_it++))
+          {
+            if (my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                              drop->name) == 0)
+              break;
+          }
+          if (!f_key)
+          {
+              my_error(ER_CANT_DROP_FIELD_OR_KEY, MYF(0), drop->type_name(),
+                       drop->name);
+              goto err;
+          }
+        }
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
         break;
       }
     }
+    drop_it.rewind();
   }
 
   if (!create_info->comment.str)
