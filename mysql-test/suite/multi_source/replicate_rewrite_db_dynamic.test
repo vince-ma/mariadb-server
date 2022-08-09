@@ -1,0 +1,34 @@
+# Test multi-source dynamically setting of replication filter "replicate_rewrite_db"
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+--connect (gandalf_master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (slave1,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--connection slave1
+--replace_result $SERVER_MYPORT_1 MYPORT_1 
+eval CHANGE MASTER 'gandalf_master1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
+
+START SLAVE 'gandalf_master1';
+set default_master_connection = 'gandalf_master1';
+--source include/wait_for_slave_to_start.inc
+SELECT @@GLOBAL.'gandalf_master1'.replicate_do_table;
+SELECT @@GLOBAL.'gandalf_master1'.replicate_rewrite_db;
+
+--echo # Prefixing
+# Stop master connection and set the rpl filters
+STOP SLAVE 'gandalf_master1';
+--source include/wait_for_slave_to_stop.inc
+
+SELECT @@GLOBAL.'gandalf_master1'.replicate_do_table;
+SELECT @@GLOBAL.'gandalf_master1'.replicate_rewrite_db;
+SET GLOBAL replicate_do_table='database1.table1,database1.table2,database1.table3';
+SET GLOBAL replicate_rewrite_db='X->Y';
+START SLAVE 'gandalf_master1';
+--source include/wait_for_slave_to_start.inc
+
+# This shouldn't be empty right?
+SELECT @@GLOBAL.'gandalf_master1'.replicate_do_table;
+SELECT @@GLOBAL.'gandalf_master1'.replicate_rewrite_db;
+
+
