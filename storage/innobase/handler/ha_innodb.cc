@@ -122,8 +122,6 @@ extern "C" void thd_mark_transaction_to_rollback(MYSQL_THD thd, bool all);
 unsigned long long thd_get_query_id(const MYSQL_THD thd);
 void thd_clear_error(MYSQL_THD thd);
 
-TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
-			  const char *table, size_t table_len);
 MYSQL_THD create_background_thd();
 void reset_thd(MYSQL_THD thd);
 TABLE *get_purge_table(THD *thd);
@@ -20010,27 +20008,22 @@ ha_innobase::multi_range_read_explain_info(
 	return m_ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
 }
 
-/** Find or open a table handle for the virtual column template
+/** Find or open a table handle for the virtual column template for purge thread
 @param[in]	thd	thread handle
 @param[in,out]	table	InnoDB table whose virtual column template
 			is to be updated
 @return table handle
 @retval NULL if the table is dropped, unaccessible or corrupted
 for purge thread */
-static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
+TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 {
 	TABLE *mysql_table;
 	const bool  bg_thread = THDVAR(thd, background_thread);
 
-	if (bg_thread) {
-		if ((mysql_table = get_purge_table(thd))) {
-			return mysql_table;
-		}
-	} else {
-		if (table->vc_templ->mysql_table_query_id
-		    == thd_get_query_id(thd)) {
-			return table->vc_templ->mysql_table;
-		}
+	ut_ad(bg_thread);
+
+	if (bg_thread && (mysql_table = get_purge_table(thd))) {
+		return mysql_table;
 	}
 
 	char	db_buf[NAME_LEN + 1];
@@ -20041,16 +20034,8 @@ static TABLE* innodb_find_table_for_vc(THD* thd, dict_table_t* table)
 		return NULL;
 	}
 
-	if (bg_thread) {
-		return open_purge_table(thd, db_buf, db_buf_len,
-					tbl_buf, tbl_buf_len);
-	}
-
-	mysql_table = find_fk_open_table(thd, db_buf, db_buf_len,
-					 tbl_buf, tbl_buf_len);
-	table->vc_templ->mysql_table = mysql_table;
-	table->vc_templ->mysql_table_query_id = thd_get_query_id(thd);
-	return mysql_table;
+	return open_purge_table(thd, db_buf, db_buf_len,
+				tbl_buf, tbl_buf_len);
 }
 
 /** Get the computed value by supplying the base column values.
@@ -20133,22 +20118,14 @@ innobase_rename_vc_templ(
 */
 
 bool innobase_allocate_row_for_vcol(THD *thd, const dict_index_t *index,
-                                    mem_heap_t **heap, TABLE **table,
+                                    mem_heap_t **heap, TABLE *maria_table,
                                     VCOL_STORAGE *storage)
 {
-  TABLE *maria_table;
   String *blob_value_storage;
-  if (!*table)
-    *table = innodb_find_table_for_vc(thd, index->table);
-
-  /* For purge thread, there is a possiblity that table could have
-     dropped, corrupted or unaccessible. */
-  if (!*table)
-    return false;
-  maria_table = *table;
   if (!*heap && !(*heap = mem_heap_create(srv_page_size)))
     return false;
 
+  ut_ad(maria_table);
   uchar *record = static_cast<byte *>(mem_heap_alloc(*heap,
                                                     maria_table->s->reclength));
 

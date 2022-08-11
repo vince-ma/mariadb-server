@@ -4952,6 +4952,7 @@ TABLE *get_purge_table(THD *thd)
   return thd->open_tables;
 }
 
+#ifndef DBUG_OFF
 /** Find an open table in the list of prelocked tabled
 
   Used for foreign key actions, for example, in UPDATE t1 SET a=1;
@@ -4972,6 +4973,7 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
   }
   return NULL;
 }
+#endif
 
 /* the following three functions are used in background purge threads */
 

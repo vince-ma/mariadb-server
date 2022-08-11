@@ -10,3 +10,20 @@ select * from t2;
 id
 drop table t2;
 drop table t1;
+#
+# MDEV-29181 Potential corruption on FK update on a table with vcol index
+#
+connect  con2, localhost, root,,;
+connection default;
+create table t1 (a int primary key);
+insert into t1(a) select * from seq_1_to_2048;
+create table t2 (a int,  b int as (a), key(b), foreign key (a) references t1 (a)
+on update cascade);
+insert into t2(a) select * from seq_1_to_2048;
+update t1 set a = a - 100000 where a < 1024;
+connection con2;
+set lock_wait_timeout =1;
+update t1 set a= a + 1000000 where a > 1024;
+connection default;
+drop table t2, t1;
+disconnect con2;

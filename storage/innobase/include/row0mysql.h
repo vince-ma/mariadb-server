@@ -287,7 +287,9 @@ upd_node_t*
 row_create_update_node_for_mysql(
 /*=============================*/
 	dict_table_t*	table,	/*!< in: table to update */
-	mem_heap_t*	heap);	/*!< in: mem heap from which allocated */
+	mem_heap_t*	heap,	/*!< in: mem heap from which allocated */
+	const row_prebuilt_t* prebuilt);
+				/*!< in: prebult for this table  */
 
 /**********************************************************************//**
 Does a cascaded delete or set null in a foreign key operation.
@@ -731,7 +733,7 @@ struct VCOL_STORAGE
 @param[in]	thd		MariaDB THD
 @param[in]	index		Index in use
 @param[out]	heap		Heap that holds temporary row
-@param[in,out]	mysql_table	MariaDB table
+@param[in,out]	maria_table	MariaDB table
 @param[out]	rec		Pointer to allocated MariaDB record
 @param[out]	storage		Internal storage for blobs etc
 
@@ -742,7 +744,7 @@ struct VCOL_STORAGE
 bool innobase_allocate_row_for_vcol(THD *thd,
 				    const dict_index_t* index,
 				    mem_heap_t**  heap,
-				    TABLE**	  table,
+				    TABLE*	  maria_table,
 				    VCOL_STORAGE* storage);
 
 /** Free memory allocated by innobase_allocate_row_for_vcol() */
@@ -756,7 +758,7 @@ public:
 
   ib_vcol_row(mem_heap_t *heap) : heap(heap) {}
 
-  byte *record(THD *thd, const dict_index_t *index, TABLE **table)
+  byte *record(THD *thd, const dict_index_t *index, TABLE *table)
   {
     if (!storage.innobase_record &&
         !innobase_allocate_row_for_vcol(thd, index, &heap, table, &storage))
