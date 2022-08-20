@@ -904,6 +904,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   if (derived->dt_handler)
   {
     char query_buff[4096];
+    
     String derived_query(query_buff, sizeof(query_buff), thd->charset());
     derived_query.length(0);
     derived->derived->print(&derived_query,

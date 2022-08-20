@@ -163,13 +163,13 @@ void ha_federatedx_derived_handler::print_error(int, unsigned long)
 }
 
 
-static select_handler*
-create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
+template<typename T>
+static select_handler *create_federatedx_handler(THD *thd, T *sel_lex)
 {
   if (!use_pushdown)
     return 0;
 
-  ha_federatedx_select_handler* handler = NULL;
+  ha_federatedx_select_handler *handler= NULL;
   handlerton *ht= 0;
 
   for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
@@ -189,12 +189,24 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
     "INTO OUTFILE". It is also unlikely to work if the select has some
     other kind of side effect.
   */
-  if (sel->uncacheable & UNCACHEABLE_SIDEEFFECT)
+  if (sel_lex->uncacheable & UNCACHEABLE_SIDEEFFECT)
     return NULL;
 
-  handler= new ha_federatedx_select_handler(thd, sel);
+  handler= new ha_federatedx_select_handler(thd, sel_lex);
 
   return handler;
+}
+
+static select_handler *create_federatedx_select_handler(
+  THD *thd, SELECT_LEX *sel_lex)
+{
+  return create_federatedx_handler(thd, sel_lex);
+}
+
+static select_handler *create_federatedx_unit_handler(
+  THD* thd, SELECT_LEX_UNIT *sel_unit)
+{
+  return create_federatedx_handler(thd, sel_unit);
 }
 
 /*
@@ -202,13 +214,22 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
   class implementation
 */
 
-ha_federatedx_select_handler::ha_federatedx_select_handler(THD *thd,
-                                                           SELECT_LEX *sel)
-  : select_handler(thd, federatedx_hton),
+
+ha_federatedx_select_handler::ha_federatedx_select_handler(
+    THD *thd, SELECT_LEX *select_lex)
+    : select_handler(thd, federatedx_hton, select_lex), 
+      share(NULL), txn(NULL), iop(NULL), stored_result(NULL)
+{
+}
+
+ha_federatedx_select_handler::ha_federatedx_select_handler(
+    THD *thd,
+    SELECT_LEX_UNIT *lex_unit)
+  : select_handler(thd, federatedx_hton, lex_unit),
     share(NULL), txn(NULL), iop(NULL), stored_result(NULL)
 {
-  select= sel;
 }
+
 
 ha_federatedx_select_handler::~ha_federatedx_select_handler() {}
 

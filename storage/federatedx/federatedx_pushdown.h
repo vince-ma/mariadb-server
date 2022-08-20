@@ -54,7 +54,8 @@ private:
   FEDERATEDX_IO_RESULT *stored_result;
 
 public:
-  ha_federatedx_select_handler(THD* thd_arg, SELECT_LEX *sel);
+  ha_federatedx_select_handler(THD *thd_arg, SELECT_LEX *sel_lex);
+  ha_federatedx_select_handler(THD *thd_arg, SELECT_LEX_UNIT *sel_unit);
   ~ha_federatedx_select_handler();
   int init_scan();
   int next_row();

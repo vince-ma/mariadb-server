@@ -1842,6 +1842,8 @@ int JOIN::optimize()
   join_optimization_state init_state= optimization_state;
   if (select_lex->pushdown_select)
   {
+    if (optimization_state == JOIN::OPTIMIZATION_DONE)
+      return 0;
     // Do same as JOIN::optimize_inner does:
     fields= &select_lex->item_list;
 
@@ -4884,7 +4886,6 @@ void JOIN::cleanup_item_list(List<Item> &items) const
   DBUG_VOID_RETURN;
 }
 
-
 /**
   @brief
     Look for provision of the select_handler interface by a foreign engine
@@ -4897,18 +4898,18 @@ void JOIN::cleanup_item_list(List<Item> &items) const
     create_select call-back function. If the call of this function returns
     a select_handler interface object then the server will push the select
     query into this engine.
-    This is a responsibility of the create_select call-back function to
-    check whether the engine can execute the query.
+    This function does not check if the select has tables from
+    different engines. Such a check must be done inside each engine's
+    create_select function.
+    Also the engine's create_select function must perform other checks
+    to make sure the engine can execute the query.
 
   @retval the found select_handler if the search is successful
           0  otherwise
 */
 
-select_handler *find_select_handler(THD *thd,
-                                    SELECT_LEX* select_lex)
+select_handler *find_select_handler(THD *thd, SELECT_LEX *select_lex)
 {
-  if (select_lex->next_select())
-    return 0;
   if (select_lex->master_unit()->outer_select())
     return 0;
 
@@ -4920,15 +4921,14 @@ select_handler *find_select_handler(THD *thd,
   {
     tbl= select_lex->join->tables_list;
   }
-  else if (thd->lex->query_tables &&
-           thd->lex->query_tables->next_global)
+  else if (thd->lex->query_tables && thd->lex->query_tables->next_global)
   {
     tbl= thd->lex->query_tables->next_global;
   }
   else
     return 0;
 
-  for (;tbl; tbl= tbl->next_global)
+  for (; tbl; tbl= tbl->next_global)
   {
     if (!tbl->table)
       continue;
@@ -4936,10 +4936,12 @@ select_handler *find_select_handler(THD *thd,
     if (!ht->create_select)
       continue;
     select_handler *sh= ht->create_select(thd, select_lex);
-    return sh;
+    if (sh)
+      return sh;
   }
   return 0;
 }
+
 
 
 /**
@@ -28456,7 +28458,6 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   DBUG_ENTER("mysql_explain_union");
   bool res= 0;
   SELECT_LEX *first= unit->first_select();
-  bool is_pushed_union= unit->derived && unit->derived->pushdown_derived;
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
@@ -28478,6 +28479,18 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
     if (!(res= unit->prepare(unit->derived, result,
                              SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
     {
+      bool is_pushed_union=
+          (unit->derived && unit->derived->pushdown_derived) ||
+          unit->pushdown_unit;
+      if (unit->pushdown_unit)
+      {
+        create_explain_query_if_not_exists(thd->lex, thd->mem_root);
+        if (!unit->executed)
+          unit->save_union_explain(thd->lex->explain);
+        List<Item> items;
+        result->prepare(items, unit);
+      }
+      
       if (!is_pushed_union)
         res= unit->exec();
     }
