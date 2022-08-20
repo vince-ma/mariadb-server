@@ -35,35 +35,78 @@
 */
 
 
+static std::pair<handlerton *, TABLE *> get_handlerton(SELECT_LEX *sel_lex)
+{
+  handlerton *hton= nullptr;
+  TABLE *table= nullptr;
+  if (!sel_lex->join)
+    return {nullptr, nullptr};
+  for (TABLE_LIST *tbl= sel_lex->join->tables_list; tbl; tbl= tbl->next_local)
+  {
+    if (!tbl->table)
+      return {nullptr, nullptr};
+    if (!hton)
+    {
+      hton= tbl->table->file->partition_ht();
+      table= tbl->table;
+    }
+    else if (hton != tbl->table->file->partition_ht())
+      return {nullptr, nullptr};
+  }
+
+  for (SELECT_LEX_UNIT *un= sel_lex->first_inner_unit(); un;
+       un= un->next_unit())
+  {
+    for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+    {
+      auto inner_ht= get_handlerton(sl);
+      if (!hton)
+      {
+        hton= inner_ht.first;
+        table= inner_ht.second;
+      }
+      else if (hton != inner_ht.first)
+        return {nullptr, nullptr};
+    }
+  }
+  return {hton, table};
+}
+
+
+static std::pair<handlerton *, TABLE *>
+get_handlerton_for_unit(SELECT_LEX_UNIT *lex_unit)
+{
+  handlerton *hton= nullptr;
+  TABLE *table= nullptr;
+  for (auto sel_lex= lex_unit->first_select(); sel_lex;
+       sel_lex= sel_lex->next_select())
+  {
+    auto next_ht= get_handlerton(sel_lex);
+    if (!hton)
+    {
+      hton= next_ht.first;
+      table= next_ht.second;
+    }
+    else if (hton != next_ht.first)
+      return {nullptr, nullptr};
+  }
+  return {hton, table};
+}
+
+
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 {
   if (!use_pushdown)
     return 0;
 
-  ha_federatedx_derived_handler* handler = NULL;
-  handlerton *ht= 0;
-
   SELECT_LEX_UNIT *unit= derived->derived;
 
-  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
-  {
-    if (!(sl->join))
-      return 0;
-    for (TABLE_LIST *tbl= sl->join->tables_list; tbl; tbl= tbl->next_local)
-    {
-      if (!tbl->table)
-	return 0;
-      if (!ht)
-        ht= tbl->table->file->partition_ht();
-      else if (ht != tbl->table->file->partition_ht())
-        return 0;
-    }
-  }
+  auto hton= get_handlerton_for_unit(unit);
+  if (!hton.first)
+    return nullptr;
 
-  handler= new ha_federatedx_derived_handler(thd, derived);
-
-  return handler;
+  return new ha_federatedx_derived_handler(thd, derived);
 }
 
 
@@ -163,38 +206,36 @@ void ha_federatedx_derived_handler::print_error(int, unsigned long)
 }
 
 
-static select_handler*
-create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
+static select_handler *create_federatedx_select_handler(
+  THD *thd, SELECT_LEX *sel_lex)
 {
   if (!use_pushdown)
-    return 0;
+    return nullptr;
 
-  ha_federatedx_select_handler* handler = NULL;
-  handlerton *ht= 0;
+  auto hton= get_handlerton(sel_lex);
+  if (!hton.first)
+    return nullptr;
 
-  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
-  {
-    if (!tbl->table)
-      return 0;
-    if (!ht)
-      ht= tbl->table->file->partition_ht();
-    else if (ht != tbl->table->file->partition_ht())
-      return 0;
-  }
-
-  /*
-    Currently, ha_federatedx_select_handler::init_scan just takes the
-    thd->query and sends it to the backend.
-    This obviously won't work if the SELECT uses an "INTO @var" or
-    "INTO OUTFILE". It is also unlikely to work if the select has some
-    other kind of side effect.
-  */
-  if (sel->uncacheable & UNCACHEABLE_SIDEEFFECT)
+  if (sel_lex->uncacheable & UNCACHEABLE_SIDEEFFECT)
     return NULL;
 
-  handler= new ha_federatedx_select_handler(thd, sel);
+  return new ha_federatedx_select_handler(thd, sel_lex, hton.second);
+}
 
-  return handler;
+static select_handler *create_federatedx_unit_handler(
+  THD* thd, SELECT_LEX_UNIT *sel_unit)
+{
+  if (!use_pushdown)
+    return nullptr;
+
+  auto hton= get_handlerton_for_unit(sel_unit);
+  if (!hton.first)
+    return nullptr;
+
+  if (sel_unit->uncacheable & UNCACHEABLE_SIDEEFFECT)
+    return nullptr;
+
+  return new ha_federatedx_select_handler(thd, sel_unit, hton.second);
 }
 
 /*
@@ -202,12 +243,31 @@ create_federatedx_select_handler(THD* thd, SELECT_LEX *sel)
   class implementation
 */
 
-ha_federatedx_select_handler::ha_federatedx_select_handler(THD *thd,
-                                                           SELECT_LEX *sel)
-  : select_handler(thd, federatedx_hton),
-    share(NULL), txn(NULL), iop(NULL), stored_result(NULL)
+
+ha_federatedx_select_handler::ha_federatedx_select_handler(
+    THD *thd, SELECT_LEX *select_lex, TABLE *tbl)
+  : select_handler(thd, federatedx_hton, select_lex),
+    share(NULL), txn(NULL), iop(NULL), stored_result(NULL), query_table(tbl),
+    query(query_buff, sizeof(query_buff), thd->charset())
 {
-  select= sel;
+  query.length(0);
+  select_lex->print(thd, &query,
+                    enum_query_type(QT_VIEW_INTERNAL |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                    QT_PARSABLE));
+}
+
+ha_federatedx_select_handler::ha_federatedx_select_handler(
+    THD *thd, SELECT_LEX_UNIT *lex_unit, TABLE *tbl)
+  : select_handler(thd, federatedx_hton, lex_unit), share(NULL), txn(NULL),
+    iop(NULL), stored_result(NULL), query_table(tbl),
+    query(query_buff, sizeof(query_buff), thd->charset())
+{
+  query.length(0);
+  lex_unit->print(&query,
+                  enum_query_type(QT_VIEW_INTERNAL |
+                                  QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                  QT_PARSABLE));
 }
 
 ha_federatedx_select_handler::~ha_federatedx_select_handler() {}
@@ -218,22 +278,14 @@ int ha_federatedx_select_handler::init_scan()
 
   DBUG_ENTER("ha_federatedx_select_handler::init_scan");
 
-  TABLE *table= 0;
-  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
-  {
-    if (!tbl->table)
-      continue;
-    table= tbl->table;
-    break;
-  }
-  ha_federatedx *h= (ha_federatedx *) table->file;
+  ha_federatedx *h= (ha_federatedx *) query_table->file;
   iop= &h->io;
-  share= get_share(table->s->table_name.str, table);
+  share= get_share(query_table->s->table_name.str, query_table);
   txn= h->get_txn(thd);
   if ((rc= txn->acquire(share, thd, TRUE, iop)))
     DBUG_RETURN(rc);
 
-  if ((*iop)->query(thd->query(), thd->query_length()))
+  if ((*iop)->query(query.ptr(), query.length()))
     goto err;
 
   stored_result= (*iop)->store_result();

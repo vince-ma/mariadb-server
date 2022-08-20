@@ -14,6 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
+#include "sql_string.h"
 #include "derived_handler.h"
 #include "select_handler.h"
 
@@ -52,9 +53,15 @@ private:
   federatedx_txn *txn;
   federatedx_io **iop;
   FEDERATEDX_IO_RESULT *stored_result;
-
+  TABLE *query_table;
+  char query_buff[4096];
+  String query;
+  
 public:
-  ha_federatedx_select_handler(THD* thd_arg, SELECT_LEX *sel);
+  ha_federatedx_select_handler(THD *thd_arg, SELECT_LEX *sel_lex,
+                               TABLE *tbl);
+  ha_federatedx_select_handler(THD *thd_arg, SELECT_LEX_UNIT *sel_unit,
+                               TABLE *tbl);
   ~ha_federatedx_select_handler();
   int init_scan();
   int next_row();
