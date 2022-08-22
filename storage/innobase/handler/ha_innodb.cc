@@ -14202,10 +14202,12 @@ been acquired by the caller who holds it for the calculation,
 @param[in]	space		tablespace object from fil_space_acquire()
 @return available space in KiB */
 static uintmax_t
-fsp_get_available_space_in_free_extents(const fil_space_t& space)
+fsp_get_available_space_in_free_extents(fil_space_t& space)
 {
+	ut_d(rw_lock_s_lock(&space.latch));
 	ulint	size_in_header = space.size_in_header;
 	if (size_in_header < FSP_EXTENT_SIZE) {
+		ut_d(rw_lock_s_unlock(&space.latch));
 		return 0;		/* TODO: count free frag pages and
 					return a value based on that */
 	}
@@ -14214,6 +14216,7 @@ fsp_get_available_space_in_free_extents(const fil_space_t& space)
 	some of them will contain extent descriptor pages, and therefore
 	will not be free extents */
 	ut_ad(size_in_header >= space.free_limit);
+	ut_d(rw_lock_s_unlock(&space.latch));
 	ulint	n_free_up =
 		(size_in_header - space.free_limit) / FSP_EXTENT_SIZE;
 
