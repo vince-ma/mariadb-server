@@ -12582,10 +12582,6 @@ create_table_info_t::create_foreign_keys()
 	to the data dictionary system tables on disk */
 	m_trx->op_info = "adding foreign keys";
 
-	trx_start_if_not_started_xa(m_trx, true);
-
-	m_trx->dict_operation = true;
-
 	error = dict_create_add_foreigns_to_dictionary(local_fk_set, table, m_trx);
 
 	if (error == DB_SUCCESS) {
@@ -12725,6 +12721,9 @@ int create_table_info_t::create_table(bool create_fk)
 		? create_foreign_keys() : DB_SUCCESS;
 
 	if (err == DB_SUCCESS) {
+		trx_start_if_not_started_xa(m_trx, true);
+		m_trx->dict_operation = true;
+
 		/* Check that also referencing constraints are ok */
 		dict_names_t	fk_tables;
 		err = dict_load_foreigns(m_table_name, nullptr,
