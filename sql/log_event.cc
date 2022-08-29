@@ -2215,7 +2215,8 @@ Format_description_log_event(const uchar *buf, uint event_len,
                              const Format_description_log_event*
                              description_event)
   :Start_log_event_v3(buf, event_len, description_event),
-   common_header_len(0), post_header_len(NULL), event_type_permutation(0)
+   common_header_len(0), post_header_len(NULL), event_type_permutation(0),
+   options_written_to_bin_log(0)
 {
   DBUG_ENTER("Format_description_log_event::Format_description_log_event(char*,...)");
   if (!Start_log_event_v3::is_valid())

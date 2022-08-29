@@ -2871,7 +2871,15 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       delete ev;
       return 1;
     }
-
+    /*
+      When the most recent FD's ::options_written_to_bin_log
+      has changed it may be different from the workers' rgi.
+      Update the latter when that's the case.
+    */
+    if (unlikely(rgi->options_to_bin_log.load(std::memory_order_relaxed) !=
+                 serial_rgi->options_to_bin_log.load(std::memory_order_relaxed)))
+      rgi->options_to_bin_log.store(serial_rgi->options_to_bin_log,
+                                    std::memory_order_relaxed);
     /*
       We queue the event group in a new worker thread, to run in parallel
       with previous groups.

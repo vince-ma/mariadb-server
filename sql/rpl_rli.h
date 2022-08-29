@@ -834,6 +834,15 @@ struct rpl_group_info
     RETRY_KILL_KILLED
   };
   uchar killed_for_retry;
+  /*
+    The variable is set/copied from recent FD's::options_written_to_bin_log at time
+    of either an instance of this class gets bound to a slave parallel worker, or
+    FD applying in the parallel and sequential slave execution modes respectively.
+    It is to provide a correct execution context for Query_log_event:s
+    while different server version originated FD:s can concurrently carry in
+    different values of options_written_to_bin_log.
+  */
+  std::atomic<uint32_t> options_to_bin_log;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();

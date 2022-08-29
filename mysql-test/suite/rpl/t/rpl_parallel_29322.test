@@ -1,0 +1,62 @@
+--echo #
+--echo # MDEV-29322 ASAN use-after-free options_written_to_bin_log
+--echo #
+
+# The tests verify that at query execution slave parallel workers successfully
+# find a correct options_written_to_bin_log value associated with the query.
+# The correct value is initally located in Format_description_event (FD).
+# Its purpose is to contribute to the execution context to queries (Qi) that
+# follow it, like FD^1:
+#                       FD^1, Q1, Q2, ... Qn
+# Any successive FD^2
+#                                        ..., FD^2, Qn+1, ...
+# may carry a different options_written_to_bin_log.
+# The tests prove that Queries use the context info from the most recent FD
+# that precedes them in the binlog order.
+# That holds while FD processing is asynchronous with the applying of
+# the query events, *and* despite master and slave server may be set with
+# different explicit_defaults_for_timestamp values (see A and B test branches).
+
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo # A. set the master and slave explicit_defaults_for_timestamp values crisscross to (1,0)
+
+--connection master
+# Configure master and slave with different values of the following variable:
+set @sav.explicit_defaults_for_timestamp      = @@session.explicit_defaults_for_timestamp;
+set @@session.explicit_defaults_for_timestamp = 1;
+--connection slave
+# slave must produce the master version of the table definition and its data
+set @sav.explicit_defaults_for_timestamp   = @@global.explicit_defaults_for_timestamp;
+set global explicit_defaults_for_timestamp = 0;
+# the global var gets changed in the included file
+set @sav.slave_parallel_workers     = @@global.slave_parallel_workers;
+--source include/stop_slave.inc
+set @@global.slave_parallel_workers = 1;
+--source include/start_slave.inc
+
+--source suite/rpl/include/rpl_parallel_29322.inc
+
+--echo # B. alternate the master and slave vars' values to (0,1)
+
+--connection master
+# Configure master and slave with different values of the following variable:
+set @@session.explicit_defaults_for_timestamp = 0;
+--connection slave
+# slave must produce the master version of the table definition and its data
+set @@global.explicit_defaults_for_timestamp = 1;
+
+--source suite/rpl/include/rpl_parallel_29322.inc
+
+# cleanup
+--connection master
+set @@session.explicit_defaults_for_timestamp = @sav.explicit_defaults_for_timestamp;
+--connection slave
+set @@global.explicit_defaults_for_timestamp = @sav.explicit_defaults_for_timestamp;
+--source include/stop_slave.inc
+set @@global.slave_parallel_workers          = @sav.slave_parallel_workers;
+--source include/start_slave.inc
+
+
+--source include/rpl_end.inc

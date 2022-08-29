@@ -5405,6 +5405,8 @@ pthread_handler_t handle_slave_sql(void *arg)
 #ifdef SHOULD_BE_CHECKED
     DBUG_ASSERT(my_b_tell(rli->cur_log) == rli->event_relay_log_pos);
 #endif
+    serial_rgi->options_to_bin_log=
+      rli->relay_log.description_event_for_exec->options_written_to_bin_log;
   }
 #endif
 

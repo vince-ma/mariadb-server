@@ -1728,7 +1728,12 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
           OPTIONS_WRITTEN_TO_BIN_LOG must take their value from
           flags2.
         */
-        ulonglong mask= rli->relay_log.description_event_for_exec->options_written_to_bin_log;
+        DBUG_ASSERT(rgi->is_parallel_exec ||
+                    rgi->options_to_bin_log ==
+                    rli->relay_log.
+                    description_event_for_exec->options_written_to_bin_log);
+
+        ulonglong mask= rgi->options_to_bin_log.load(std::memory_order_relaxed);
         thd->variables.option_bits= (flags2 & mask) |
                                     (thd->variables.option_bits & ~mask);
       }
@@ -2436,6 +2441,7 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
     copy_crypto_data(rli->relay_log.description_event_for_exec);
     delete rli->relay_log.description_event_for_exec;
     rli->relay_log.description_event_for_exec= this;
+    rgi->options_to_bin_log= options_written_to_bin_log;
   }
 
   DBUG_RETURN(ret);
