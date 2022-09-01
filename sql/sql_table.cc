@@ -92,7 +92,20 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *,
                                       FK_list &, FK_list &, int,
-                                      Table_name table_name);
+                                      Table_name table_name, Table_name new_name);
+static inline int
+mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
+                           Alter_info *alter_info, uint *db_options,
+                           handler *file, KEY **key_info_buffer,
+                           uint *key_count, FK_list &foreign_keys,
+                           FK_list &referenced_keys,
+                           int create_table_mode, Table_name table_name)
+{
+  return mysql_prepare_create_table(thd, create_info, alter_info, db_options,
+                                    file, key_info_buffer, key_count,
+                                    foreign_keys, referenced_keys,
+                                    create_table_mode, table_name, table_name);
+}
 static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *, List<Virtual_column_info> *,
                                   const HA_CREATE_INFO *);
@@ -2779,7 +2792,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            handler *file, KEY **key_info_buffer,
                            uint *key_count, FK_list &foreign_keys,
                            FK_list &referenced_keys,
-                           int create_table_mode, Table_name table_name)
+                           int create_table_mode, Table_name table_name,
+                           Table_name new_name)
 {
   Lex_cstring   key_name;
   Lex_ident_set key_names;
@@ -3116,11 +3130,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       {
         FK_info *fk= new (thd->mem_root) FK_info();
         Foreign_key &fkey= static_cast<Foreign_key &>(*key);
-        // FIXME: new_db, new_table_name
-        fk->assign(fkey, table_name);
+        fk->assign(fkey, new_name);
         if (!fk->foreign_id.str)
         {
-          fk->foreign_id= make_unique_key_name(thd, table_name.name, key_names, true);
+          fk->foreign_id= make_unique_key_name(thd, new_name.name, key_names, true);
           fkey.constraint_name= fk->foreign_id;
         }
         if (foreign_keys.push_back(fk))
@@ -3185,8 +3198,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->foreign)
     {
       FK_info *fk= new (thd->mem_root) FK_info();
-      // FIXME: new_table_name
-      fk->assign(*(Foreign_key *) key, table_name);
+      fk->assign(*(Foreign_key *) key, new_name);
       fk->foreign_id= key_name;
       if (foreign_keys.push_back(fk))
       {
@@ -4126,7 +4138,7 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
 }
 
 handler *mysql_create_frm_image(THD *thd, Table_name table_name,
-                                Table_name new_table_name,
+                                Table_name new_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info, int create_table_mode,
                                 KEY **key_info, uint *key_count,
@@ -4370,7 +4382,8 @@ handler *mysql_create_frm_image(THD *thd, Table_name table_name,
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
                                  file, key_info, key_count, foreign_keys,
-                                 referenced_keys, create_table_mode, table_name))
+                                 referenced_keys, create_table_mode,
+                                 table_name, new_name))
     goto err;
   create_info->table_options=db_options;
 
