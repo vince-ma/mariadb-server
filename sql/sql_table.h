@@ -143,10 +143,8 @@ int mysql_create_table_no_lock(THD *thd,
                                int create_table_mode, TABLE_LIST *table);
 
 handler *mysql_create_frm_image(THD *thd,
-                                const LEX_CSTRING &db,
-                                const LEX_CSTRING &table_name,
-                                const LEX_CSTRING &new_db,
-                                const LEX_CSTRING &new_table_name,
+                                Table_name table_name,
+                                Table_name new_table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info,
                                 int create_table_mode,

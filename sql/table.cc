@@ -3443,7 +3443,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
   promote_first_timestamp_column(&thd->lex->alter_info.create_list);
   thd->lex->create_info.alter_info= &thd->lex->alter_info;
-  file= mysql_create_frm_image(thd, db, table_name, db, table_name,
+  file= mysql_create_frm_image(thd, {db, table_name}, {db, table_name},
                                &thd->lex->create_info, &thd->lex->alter_info,
                                C_ORDINARY_CREATE, &unused1, &unused2,
                                foreign_keys, referenced_keys, &frm);

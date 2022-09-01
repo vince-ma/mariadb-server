@@ -4125,10 +4125,8 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
   return result;
 }
 
-handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
-                                const LEX_CSTRING &table_name,
-                                const LEX_CSTRING &new_db,
-                                const LEX_CSTRING &new_table_name,
+handler *mysql_create_frm_image(THD *thd, Table_name table_name,
+                                Table_name new_table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info, int create_table_mode,
                                 KEY **key_info, uint *key_count,
@@ -4273,7 +4271,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
 
     if (part_info->vers_info && !create_info->versioned())
     {
-      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name.str);
+      my_error(ER_VERS_NOT_VERSIONED, MYF(0), table_name.name.str);
       goto err;
     }
 
@@ -4373,11 +4371,11 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
                                  file, key_info, key_count, foreign_keys,
                                  referenced_keys, create_table_mode,
-                                 db, table_name))
+                                 table_name.db, table_name.name))
     goto err;
   create_info->table_options=db_options;
 
-  *frm= build_frm_image(thd, table_name, create_info,
+  *frm= build_frm_image(thd, table_name.name, create_info,
                         alter_info->create_list, *key_count,
                         *key_info, foreign_keys, referenced_keys, file);
 
@@ -4686,7 +4684,8 @@ int create_table_impl(THD *thd,
                            &path, &db, &table_name, frm_only);
     debug_crash_here("ddl_log_create_before_create_frm");
 
-    file= mysql_create_frm_image(thd, orig_db, orig_table_name, db, new_name, create_info,
+    file= mysql_create_frm_image(thd, {orig_db, orig_table_name}, {db, new_name},
+                                 create_info,
                                  alter_info, create_table_mode, key_info,
                                  key_count, foreign_keys, referenced_keys, frm);
     /*
