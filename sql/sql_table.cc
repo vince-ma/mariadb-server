@@ -5068,46 +5068,54 @@ make_unique_key_name(THD *thd, LEX_CSTRING prefix,
 {
   char buf[MAX_FIELD_NAME - 1];
   char *ptr= buf;
-  static const LEX_CSTRING fk_prefix= { C_STRING_WITH_LEN("fk_") };
-  DBUG_ASSERT(fk_prefix.length < sizeof(buf));
+  Lex_cstring ret;
+  static constexpr LEX_CSTRING fk_suffix= { C_STRING_WITH_LEN("_ibfk_") };
+  DBUG_ASSERT(fk_suffix.length < sizeof(buf));
 
   if (foreign)
-  {
-    memcpy(ptr, LEX_STRING_WITH_LEN(fk_prefix));
-    ptr+= fk_prefix.length;
-    prefix.length= std::min(sizeof(buf) - fk_prefix.length - 1, prefix.length);
-  }
+    prefix.length= std::min(sizeof(buf) - fk_suffix.length - 5, prefix.length);
   else
-    prefix.length= std::min(sizeof(buf) - 1, prefix.length);
+    prefix.length= std::min(sizeof(buf) - 5, prefix.length);
 
   memcpy(ptr, prefix.str, prefix.length);
   ptr+= prefix.length;
   DBUG_ASSERT(ptr - buf < (long int)sizeof(buf));
-  *ptr= 0;
-  prefix.str= buf;
   if (foreign)
-    prefix.length+= fk_prefix.length;
-
-  if ((key_names.find(prefix) == key_names.end()) &&
-      my_strcasecmp(system_charset_info, prefix.str, primary_key_name.str))
   {
-    Lex_cstring ret(prefix);
+    memcpy(ptr, LEX_STRING_WITH_LEN(fk_suffix));
+    ptr+= fk_suffix.length;
+    *(ptr++)= '1';
+  }
+  ret= {buf, (size_t) (ptr - buf)};
+  *ptr= 0;
+
+  if ((key_names.find(ret) == key_names.end()) &&
+      my_strcasecmp(system_charset_info, buf, primary_key_name.str))
+  {
     ret.strdup(thd->mem_root, ret);
     return ret;
+  }
+
+  if (foreign)
+  {
+    ret.length-= 2;
+    ptr-= 2;
   }
 
   /*
     Only 3 chars + '\0' left, so need to limit to 2 digit
     This is ok as we can't have more than 100 keys anyway
   */
-  if (prefix.length > sizeof(buf) - 4)
-    prefix.length= sizeof(buf) - 4;
+  if (ret.length > sizeof(buf) - 4)
+    ret.length= sizeof(buf) - 4;
+
+  size_t base_len= ret.length;
 
   for (uint i= 2 ; i < 100; i++)
   {
     *ptr= '_';
     size_t n= int10_to_str(i, ptr + 1, 10) - ptr;
-    Lex_cstring ret(buf, prefix.length + n);
+    ret.length= base_len + n;
     if (key_names.find(ret) == key_names.end())
     {
       ret.strdup(thd->mem_root, ret);
