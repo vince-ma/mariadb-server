@@ -721,7 +721,7 @@ START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 DELETE IGNORE FROM t1 WHERE b = 1;
 
-SELECT a FROM t1 FORCE INDEX(fk_t1);
+SELECT a FROM t1 FORCE INDEX(a);
 # This would wrongly return the empty result if
 # the "goto rollback_to_savept" in row_mysql_handle_errors() is reverted.
 SELECT * FROM t1;
@@ -842,10 +842,10 @@ while ($i < $constr_count)
 }
 --disable_query_log
 --echo Parsing foreign keys 1...
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 eval create table t0($fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 2...
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 eval create table t1($fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 3...
 --error ER_CANT_CREATE_TABLE
@@ -911,7 +911,7 @@ DROP TABLE t;
 
 # MDEV-21792 Server aborts upon attempt to create foreign key on spatial field
 # Fail to create foreign key for spatial fields
---error ER_CANT_CREATE_TABLE
+--error ER_NO_SUCH_TABLE
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 		 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
 
@@ -998,7 +998,7 @@ create or replace table t1(a tinyint primary key) engine innodb;
 --error ER_CANT_CREATE_TABLE
 alter table t2 add foreign key(a) references t1;
 create or replace table t1(b int primary key) engine innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 alter table t2 add foreign key(a) references t1;
 create or replace table t1(a int primary key, b int) engine innodb;
 alter table t2 add foreign key(a) references t1;

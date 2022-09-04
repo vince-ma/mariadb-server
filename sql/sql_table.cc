@@ -3167,16 +3167,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         key->name= key_name;
       }
     }
-    else if (key->foreign)
-    {
-      Foreign_key &fkey= static_cast<Foreign_key &>(*key);
-      key_name= fkey.constraint_name.str ? fkey.constraint_name : key->name;
-      if (!key_name.str)
-      {
-        key_name= make_unique_key_name(thd, table_name.name, key_names, true);
-        fkey.constraint_name= key_name;
-      }
-    }
     else if (!(key_name= key->name, key_name.str))
     {
       auto field_name= key->columns.elem(0)->field_name;
@@ -3189,6 +3179,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         field_name= sql_field->field_name;
       key_name=make_unique_key_name(thd, field_name,
                                     key_names, false);
+      if (key->foreign)
+      {
+        Foreign_key &fkey= static_cast<Foreign_key &>(*key);
+        if (!fkey.constraint_name.str)
+        {
+          fkey.constraint_name= make_unique_key_name(thd, table_name.name, key_names, true);
+        }
+      }
     }
     if (dup_check.find(key_name) != dup_check.end())
     {
@@ -3197,9 +3195,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
     if (key->foreign)
     {
+      Foreign_key &fkey= static_cast<Foreign_key &>(*key);
       FK_info *fk= new (thd->mem_root) FK_info();
-      fk->assign(*(Foreign_key *) key, new_name);
-      fk->foreign_id= key_name;
+      DBUG_ASSERT(fkey.constraint_name.str);
+      fk->assign(fkey, new_name);
+      fk->foreign_id= fkey.constraint_name;
       if (foreign_keys.push_back(fk))
       {
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
