@@ -9914,6 +9914,62 @@ void FK_info::print(String& out)
 }
 
 
+/**
+  @brief SQL layer adaptation of dict_foreign_find_index()
+
+  @param ref_share  Referenced table share
+
+  @return KEY which FK_info is referring to or NULL
+*/
+KEY * FK_info::find_referenced_key(TABLE_SHARE *ref_share)
+{
+  uint i; // FIXME: remove i?
+  KEY *key;
+  const Type_handler *fk_type;
+
+  DBUG_ASSERT(foreign_fields.elements == referenced_fields.elements);
+  DBUG_ASSERT(foreign_key->user_defined_key_parts >= foreign_fields.elements);
+
+  List_iterator_fast<Lex_cstring> rf_it(referenced_fields);
+
+  for (i= 0, key= ref_share->key_info; i < ref_share->keys; i++, key++)
+  {
+    if (key->user_defined_key_parts < referenced_fields.elements)
+      continue;
+    rf_it.rewind();
+    KEY_PART_INFO *rkp= key->key_part;
+    KEY_PART_INFO *fkp= foreign_key->key_part;
+    Lex_cstring *rf;
+    for (rf= rf_it++; rf; rf= rf_it++, rkp++, fkp++)
+    {
+      // FIXME: skip column prefix index
+      if (0 != cmp_ident(rkp->field->field_name, *rf))
+        break;
+
+      if (fkp->key_part_flag & HA_CREATE_TABLE)
+      {
+        /* We are under CREATE TABLE */
+        Create_field *field= (Create_field *) fkp->field;
+        fk_type= field->type_handler();
+      }
+      else
+        fk_type= fkp->field->type_handler();
+
+      if (rkp->field->type_handler() != fk_type)
+        break;
+      // FIXME: test different charsets after match?
+      // Note: fkp->field is not initialized
+      // DBUG_ASSERT(rkp->field->result_type() == fkp->field->result_type());
+      // DBUG_ASSERT(rkp->field->cmp_type() == fkp->field->cmp_type());
+    }
+    if (rf)
+      continue; /* not found */
+    return key;
+  }
+  return NULL;
+}
+
+
 bool TABLE_SHARE::fk_check_consistency(THD *thd)
 {
   mbd::set<Table_name> warned;

@@ -120,7 +120,8 @@ bool fk_handle_drop(THD* thd, TABLE_LIST* table, mbd::vector<FK_ddl_backup>& sha
                     bool drop_db);
 
 static
-bool fk_prepare_create_table(THD *thd, Alter_info &alter_info, FK_list &foreign_keys);
+bool fk_prepare_create_table(THD *thd, Alter_info &alter_info,
+                             FK_list &foreign_keys);
 
 
 /**
@@ -3085,10 +3086,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         /* mark that the generated key should be ignored */
         if (!key2->generated ||
             (key->generated && key->columns.elements < key2->columns.elements))
+        {
           key->ignore= true;
+          key->ignore_reason= key2;
+        }
         else
         {
           key2->ignore= true;
+          key2->ignore_reason= key;
           key_parts-= key2->columns.elements;
           (*key_count)--;
         }
@@ -3123,20 +3128,33 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   if (!*key_info_buffer)
     DBUG_RETURN(true);				// Out of memory
 
+  std::multimap<Key *, FK_info *> ignore_fixup;
   key_iterator.rewind();
   while ((key=key_iterator++))
   {
     if (key->ignore)
     {
-      if (key->foreign)
+      DBUG_ASSERT(key->foreign); // FIXME: right?
+      if (key->foreign) // FIXME: remove this condition?
       {
-        FK_info *fk= new (thd->mem_root) FK_info();
-        Foreign_key &fkey= static_cast<Foreign_key &>(*key);
-        fk->assign(fkey, new_name);
-        if (!fk->foreign_id.str)
+        FK_info *fk;
+        if (key->ignore_reason2)
         {
-          fk->foreign_id= make_unique_key_name(thd, new_name.name, key_names, true);
-          fkey.constraint_name= fk->foreign_id;
+          DBUG_ASSERT(thd->lex->sql_command == SQLCOM_ALTER_TABLE);
+          fk= key->ignore_reason2;
+        }
+        else
+        {
+          DBUG_ASSERT(key->ignore_reason);
+          fk= new (thd->mem_root) FK_info();
+          Foreign_key &fkey= static_cast<Foreign_key &>(*key);
+          fk->assign(fkey, new_name);
+          if (!fk->foreign_id.str)
+          {
+            fk->foreign_id= make_unique_key_name(thd, new_name.name, key_names, true);
+            fkey.constraint_name= fk->foreign_id;
+          }
+          ignore_fixup.insert({key->ignore_reason, fk});
         }
         if (foreign_keys.push_back(fk))
         {
@@ -3202,6 +3220,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_ASSERT(fkey.constraint_name.str);
       fk->assign(fkey, new_name);
       fk->foreign_id= fkey.constraint_name;
+      fk->foreign_key= key_info;
       if (foreign_keys.push_back(fk))
       {
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -3223,6 +3242,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     int parts_added= append_system_key_parts(thd, create_info, key);
     if (parts_added < 0)
       DBUG_RETURN(true);
+
     key_parts += parts_added;
     key_info++;
   }
@@ -3247,6 +3267,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       /* Skip generating index if it is redundant */
       continue;
     }
+
+    /* Update foreign_key for all foreign keys with ignore_reason of this key */
+    auto r= ignore_fixup.equal_range(key);
+    for (auto fixup_it= r.first; fixup_it != r.second; fixup_it++)
+      fixup_it->second->foreign_key= key_info;
+
 
     uint key_length=0;
     Create_field *auto_increment_key= 0;
@@ -3496,6 +3522,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       key_part_info->offset=  (uint16) sql_field->offset;
       key_part_info->key_type=sql_field->pack_flag;
       key_part_info->key_part_flag= column->asc ? 0 : HA_REVERSE_SORT;
+      key_part_info->key_part_flag|= HA_CREATE_TABLE;
+      key_part_info->field= (Field *) sql_field;
       uint key_part_length= sql_field->type_handler()->
                               calc_key_length(*sql_field);
 
@@ -5091,7 +5119,8 @@ make_unique_key_name(THD *thd, LEX_CSTRING prefix,
   if ((key_names.find(ret) == key_names.end()) &&
       my_strcasecmp(system_charset_info, buf, primary_key_name.str))
   {
-    ret.strdup(thd->mem_root, ret);
+    if (ret.strdup(thd->mem_root, ret))
+      return {NULL, size_t(0)};
     return ret;
   }
 
@@ -5117,7 +5146,8 @@ make_unique_key_name(THD *thd, LEX_CSTRING prefix,
     ret.length= base_len + n;
     if (key_names.find(ret) == key_names.end())
     {
-      ret.strdup(thd->mem_root, ret);
+      if (ret.strdup(thd->mem_root, ret))
+        return {NULL, size_t(0)};
       return ret;
     }
   }
@@ -8627,7 +8657,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   }
 
   /*
-    Collect all foreign keys which isn't in drop list.
+    Collect all foreign keys which are not in drop list.
   */
   for (const FK_info &fk: table->s->foreign_keys)
   {
@@ -8685,6 +8715,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     // NB: add index component from table->s->keys below
     key->ignore= true;
+    key->ignore_reason2= const_cast<FK_info *>(&fk);
     alter_info->tmp_old_fkeys++;
     if (new_key_list.push_back(key, thd->mem_root))
     {
@@ -12908,13 +12939,14 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
 
     2. Fix foreign and referenced fields case. Fields must be fixed before FRM is
     written and thus we need to acquire referenced shares now and then later in
-    fk_handle_c6reate() for refs X-locking (and update their FRMs). Note that
+    fk_handle_create() for refs X-locking (and update their FRMs). Note that
     X-locking is done differently for ALTER so we'd better avoid it here.
 */
 static
-bool fk_prepare_create_table(THD *thd, Alter_info &alter_info, FK_list &foreign_keys)
+bool fk_prepare_create_table(THD *thd, Alter_info &alter_info,
+                             FK_list &foreign_keys)
 {
-  List_iterator_fast<Create_field> cl_it(alter_info.create_list);
+  List_iterator_fast<Create_field> create_list_it(alter_info.create_list);
   mbd::map<Table_name, Share_acquire, Table_name_lt> ref_shares;
   const bool check_foreign= thd->variables.check_foreign();
 
@@ -12954,23 +12986,23 @@ bool fk_prepare_create_table(THD *thd, Alter_info &alter_info, FK_list &foreign_
   {
     DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
     List_iterator_fast<Lex_cstring> rf_it(fk.referenced_fields);
+    TABLE_SHARE *ref_share= NULL;
+    if (!fk.self_ref())
+    {
+      Table_name ref(fk.ref_db(), fk.referenced_table);
+      auto ref_it= ref_shares.find(ref);
+      if (!check_foreign && ref_it == ref_shares.end())
+        continue;
+      DBUG_ASSERT(ref_it != ref_shares.end());
+      ref_share= ref_it->second.share;
+      DBUG_ASSERT(ref_share);
+    }
     for (Lex_cstring &ff: fk.foreign_fields)
     {
-      TABLE_SHARE *ref_share= NULL;
-      if (!fk.self_ref())
-      {
-        Table_name ref(fk.ref_db(), fk.referenced_table);
-        auto ref_it= ref_shares.find(ref);
-        if (!check_foreign && ref_it == ref_shares.end())
-          continue;
-        DBUG_ASSERT(ref_it != ref_shares.end());
-        ref_share= ref_it->second.share;
-        DBUG_ASSERT(ref_share);
-      }
       Lex_cstring &rf= *(rf_it++);
       Create_field *cf;
-      cl_it.rewind();
-      while ((cf= cl_it++))
+            create_list_it.rewind();
+      while ((cf= create_list_it++))
       {
         if (0 == cmp_ident(cf->field_name, ff))
           break;
@@ -13011,8 +13043,8 @@ bool fk_prepare_create_table(THD *thd, Alter_info &alter_info, FK_list &foreign_
       else
       {
         Create_field *ref_field;
-        cl_it.rewind();
-        while ((ref_field= cl_it++))
+                create_list_it.rewind();
+        while ((ref_field= create_list_it++))
         {
           if (0 == cmp_ident(ref_field->field_name, rf))
             break;
@@ -13041,15 +13073,32 @@ bool fk_prepare_create_table(THD *thd, Alter_info &alter_info, FK_list &foreign_
           my_error(ER_OUT_OF_RESOURCES, MYF(0));
           return true;
         }
-      } // else (!ref_share)
+      } /* else (!ref_share) */
       /* NB: case may be different. Let's store correct case. */
       if (ff.strdup(thd->mem_root, LEX_STRING_WITH_LEN(cf->field_name)))
       {
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
         return true;
       }
-    } // for (ff)
-  } // for (fk)
+    } // for (fk.foreign_fields)
+    if (check_foreign)
+    {
+      if (!fk.foreign_key)
+      {
+        my_error(ER_FK_NO_INDEX_CHILD, MYF(0), fk.foreign_id.str,
+                fk.foreign_table.str);
+        return true;
+      }
+      // FIXME: check referenced index, remove dict_foreign_find_index() for
+      // referenced table.
+      if (!fk.find_referenced_key(ref_share))
+      {
+        my_error(ER_FK_NO_INDEX_PARENT, MYF(0), fk.foreign_id.str,
+                fk.referenced_table.str);
+        return true;
+      }
+    }
+  } // for (foreign_keys)
   return false;
 }
 

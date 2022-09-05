@@ -659,13 +659,24 @@ public:
   bool without_overlaps;
   Lex_ident period;
   bool ignore;
+  /*
+    Key that inflicts this key to be redundant.
+    Helps to put correct KEY pointer "foreign_key" into FK_info for ignored keys.
+  */
+  Key *ignore_reason;
+  /*
+    Second reason is for ALTER TABLE.
+    See "key->ignore= true" in mysql_prepare_alter_table().
+  */
+  FK_info *ignore_reason2;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
       ha_key_alg algorithm_arg, bool generated_arg, DDL_options_st ddl_options)
     :DDL_options(ddl_options),
      type(type_par), foreign(false), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false), without_overlaps(false), ignore(false)
+    invisible(false), without_overlaps(false), ignore(false),
+    ignore_reason(NULL), ignore_reason2(NULL)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -676,7 +687,8 @@ public:
     :DDL_options(ddl_options),
      type(type_par), foreign(false), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false), without_overlaps(false), ignore(false)
+    invisible(false), without_overlaps(false), ignore(false),
+    ignore_reason(NULL), ignore_reason2(NULL)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() {}

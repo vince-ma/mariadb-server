@@ -1920,11 +1920,16 @@ public:
   enum_fk_option delete_method;
   List<Lex_cstring> foreign_fields;
   List<Lex_cstring> referenced_fields;
+  /*
+    Note: to find referenced_key use find_referenced_key()
+  */
+  KEY *foreign_key;
 
 public:
   FK_info() :
     update_method(FK_OPTION_UNDEF),
-    delete_method(FK_OPTION_UNDEF)
+    delete_method(FK_OPTION_UNDEF),
+    foreign_key(NULL)
   {}
   Lex_cstring ref_db() const
   {
@@ -1973,6 +1978,7 @@ public:
   Table_name for_table(MEM_ROOT *mem_root) const;
   Table_name ref_table(MEM_ROOT *mem_root) const;
   void print(String &out);
+  KEY * find_referenced_key(TABLE_SHARE *ref_share);
 };
 
 typedef class FK_info FOREIGN_KEY_INFO;
