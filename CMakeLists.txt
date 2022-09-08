@@ -248,9 +248,21 @@ ENDIF()
 
 INCLUDE(wsrep)
 
-OPTION(WITH_DBUG_TRACE "Enable DBUG_ENTER()/DBUG_EXIT()" ON)
+OPTION(WITH_DBUG_TRACE "Enable DBUG_ENTER()/DBUG_EXIT()/DBUG_PRINT()" ON)
 IF(WITH_DBUG_TRACE)
-  ADD_DEFINITIONS(-DDBUG_TRACE)
+  FOREACH(LANG C CXX)
+    SET(CMAKE_${LANG}_FLAGS_DEBUG "${CMAKE_${LANG}_FLAGS_DEBUG} -DDBUG_TRACE")
+  ENDFOREACH()
+ELSE()
+  # There could be variables/functions used only in DBUG_PRINT statements
+  # Disable corresponding warnings.
+  IF(MSVC)
+    ADD_COMPILE_OPTIONS("$<$<CONFIG:DEBUG>:-wd4101>")
+  ELSE()
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-variable" DEBUG)
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-function" DEBUG)
+    MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-unused-but-set-variable" DEBUG)
+  ENDIF()
 ENDIF()
 
 # Always enable debug sync for debug builds.
