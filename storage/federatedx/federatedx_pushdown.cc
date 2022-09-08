@@ -129,9 +129,16 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 ha_federatedx_derived_handler::ha_federatedx_derived_handler(THD *thd,
                                                              TABLE_LIST *dt)
   : derived_handler(thd, federatedx_hton),
-    share(NULL), txn(NULL), iop(NULL), stored_result(NULL)
+    share(NULL), txn(NULL), iop(NULL), stored_result(NULL),
+    query(thd->charset())
 {
   derived= dt;
+
+  query.length(0);
+  dt->derived->print(&query,
+                     enum_query_type(QT_VIEW_INTERNAL |
+                                     QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                     QT_PARSABLE));
 }
 
 ha_federatedx_derived_handler::~ha_federatedx_derived_handler() {}
@@ -152,7 +159,7 @@ int ha_federatedx_derived_handler::init_scan()
   if ((rc= txn->acquire(share, thd, TRUE, iop)))
     DBUG_RETURN(rc);
 
-  if ((*iop)->query(derived->derived_spec.str, derived->derived_spec.length))
+  if ((*iop)->query(query.ptr(), query.length()))
     goto err;
 
   stored_result= (*iop)->store_result();

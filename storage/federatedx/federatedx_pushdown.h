@@ -30,6 +30,7 @@ private:
   federatedx_txn *txn;
   federatedx_io **iop;
   FEDERATEDX_IO_RESULT *stored_result;
+  StringBuffer<512> query;
 
 public:
   ha_federatedx_derived_handler(THD* thd_arg, TABLE_LIST *tbl);
