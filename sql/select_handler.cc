@@ -64,10 +64,9 @@ TABLE *select_handler::create_tmp_table(THD *thd)
   List<Item> types;
   TMP_TABLE_PARAM tmp_table_param;
   
-  if (select_lex &&
-      select_lex->master_unit()->join_union_item_types(thd, types, 1))
-    DBUG_RETURN(NULL);
-  else if (lex_unit && lex_unit->join_union_item_types(thd, types, 1))
+  SELECT_LEX_UNIT *u= select_lex? select_lex->master_unit() : lex_unit;
+
+  if (u->join_union_item_types(thd, types, 1))
     DBUG_RETURN(NULL);
 
   tmp_table_param.init();

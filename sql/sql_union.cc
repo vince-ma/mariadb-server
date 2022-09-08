@@ -2222,7 +2222,7 @@ bool st_select_lex_unit::optimize()
 }
 
 
-bool st_select_lex_unit::exec() 
+bool st_select_lex_unit::exec()
 {
   DBUG_ENTER("st_select_lex_unit::exec");
   if (executed && !uncacheable && !describe)

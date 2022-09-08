@@ -73,6 +73,17 @@ static std::pair<handlerton *, TABLE *> get_handlerton(SELECT_LEX *sel_lex)
 }
 
 
+/*
+  Check that all tables in the lex_unit use the same storage engine.
+
+  @return
+    the storage engine's handlerton and an example table.
+
+  @todo
+    Why does this need to be so generic? We know we need
+    tables with hton == federatedx_hton, why not only look for
+    those tables?
+*/
 static std::pair<handlerton *, TABLE *>
 get_handlerton_for_unit(SELECT_LEX_UNIT *lex_unit)
 {
@@ -248,7 +259,7 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
     THD *thd, SELECT_LEX *select_lex, TABLE *tbl)
   : select_handler(thd, federatedx_hton, select_lex),
     share(NULL), txn(NULL), iop(NULL), stored_result(NULL), query_table(tbl),
-    query(query_buff, sizeof(query_buff), thd->charset())
+    query(thd->charset())
 {
   query.length(0);
   select_lex->print(thd, &query,
@@ -257,11 +268,12 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
                                     QT_PARSABLE));
 }
 
+
 ha_federatedx_select_handler::ha_federatedx_select_handler(
     THD *thd, SELECT_LEX_UNIT *lex_unit, TABLE *tbl)
   : select_handler(thd, federatedx_hton, lex_unit), share(NULL), txn(NULL),
     iop(NULL), stored_result(NULL), query_table(tbl),
-    query(query_buff, sizeof(query_buff), thd->charset())
+    query(thd->charset())
 {
   query.length(0);
   lex_unit->print(&query,
@@ -269,6 +281,7 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
                                   QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                   QT_PARSABLE));
 }
+
 
 ha_federatedx_select_handler::~ha_federatedx_select_handler() {}
 

@@ -5568,7 +5568,7 @@ void st_select_lex::set_explain_type(bool on_the_fly)
             bool uses_cte= false;
             for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS,
                                                        WITH_CONST_TABLES);
-                 tab; 
+                 tab;
                  tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
             {
               /*

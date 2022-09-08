@@ -54,8 +54,7 @@ private:
   federatedx_io **iop;
   FEDERATEDX_IO_RESULT *stored_result;
   TABLE *query_table;
-  char query_buff[4096];
-  String query;
+  StringBuffer<512> query;
   
 public:
   ha_federatedx_select_handler(THD *thd_arg, SELECT_LEX *sel_lex,
