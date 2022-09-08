@@ -117,7 +117,7 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
   if (!hton.first)
     return nullptr;
 
-  return new ha_federatedx_derived_handler(thd, derived);
+  return new ha_federatedx_derived_handler(thd, derived, hton.second);
 }
 
 
@@ -127,10 +127,10 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 */
 
 ha_federatedx_derived_handler::ha_federatedx_derived_handler(THD *thd,
-                                                             TABLE_LIST *dt)
+                                                             TABLE_LIST *dt,
+                                                             TABLE *tbl)
   : derived_handler(thd, federatedx_hton),
-    share(NULL), txn(NULL), iop(NULL), stored_result(NULL),
-    query(thd->charset())
+    federatedx_handler_base(thd, tbl)
 {
   derived= dt;
 
@@ -141,74 +141,8 @@ ha_federatedx_derived_handler::ha_federatedx_derived_handler(THD *thd,
                                      QT_PARSABLE));
 }
 
-ha_federatedx_derived_handler::~ha_federatedx_derived_handler() {}
 
-int ha_federatedx_derived_handler::init_scan()
-{
-  THD *thd;
-  int rc= 0;
-
-  DBUG_ENTER("ha_federatedx_derived_handler::init_scan");
-
-  TABLE *table= derived->get_first_table()->table;
-  ha_federatedx *h= (ha_federatedx *) table->file;
-  iop= &h->io;
-  share= get_share(table->s->table_name.str, table);
-  thd= table->in_use;
-  txn= h->get_txn(thd);
-  if ((rc= txn->acquire(share, thd, TRUE, iop)))
-    DBUG_RETURN(rc);
-
-  if ((*iop)->query(query.ptr(), query.length()))
-    goto err;
-
-  stored_result= (*iop)->store_result();
-  if (!stored_result)
-      goto err;
-
-  DBUG_RETURN(0);
-
-err:
-  DBUG_RETURN(HA_FEDERATEDX_ERROR_WITH_REMOTE_SYSTEM);
-}
-
-int ha_federatedx_derived_handler::next_row()
-{
-  int rc;
-  FEDERATEDX_IO_ROW *row;
-  ulong *lengths;
-  Field **field;
-  int column= 0;
-  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
-  DBUG_ENTER("ha_federatedx_derived_handler::next_row");
-
-  if ((rc= txn->acquire(share, table->in_use, TRUE, iop)))
-    DBUG_RETURN(rc);
-
-  if (!(row= (*iop)->fetch_row(stored_result)))
-    DBUG_RETURN(HA_ERR_END_OF_FILE);
-
-  /* Convert row to internal format */
-  table->in_use->variables.time_zone= UTC;
-  lengths= (*iop)->fetch_lengths(stored_result);
-
-  for (field= table->field; *field; field++, column++)
-  {
-    if ((*iop)->is_column_null(row, column))
-       (*field)->set_null();
-    else
-    {
-      (*field)->set_notnull();
-      (*field)->store((*iop)->get_column_data(row, column),
-                      lengths[column], &my_charset_bin);
-    }
-  }
-  table->in_use->variables.time_zone= saved_time_zone;
-
-  DBUG_RETURN(rc);
-}
-
-int ha_federatedx_derived_handler::end_scan()
+int federatedx_handler_base::end_scan_()
 {
   DBUG_ENTER("ha_federatedx_derived_handler::end_scan");
 
@@ -261,12 +195,16 @@ static select_handler *create_federatedx_unit_handler(
   class implementation
 */
 
+federatedx_handler_base::federatedx_handler_base(THD *thd_arg, TABLE *tbl_arg)
+ : share(NULL), txn(NULL), iop(NULL), stored_result(NULL),
+   query(thd_arg->charset()),
+   query_table(tbl_arg)
+{}
 
 ha_federatedx_select_handler::ha_federatedx_select_handler(
     THD *thd, SELECT_LEX *select_lex, TABLE *tbl)
   : select_handler(thd, federatedx_hton, select_lex),
-    share(NULL), txn(NULL), iop(NULL), stored_result(NULL), query_table(tbl),
-    query(thd->charset())
+    federatedx_handler_base(thd, tbl)
 {
   query.length(0);
   select_lex->print(thd, &query,
@@ -278,9 +216,8 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
 
 ha_federatedx_select_handler::ha_federatedx_select_handler(
     THD *thd, SELECT_LEX_UNIT *lex_unit, TABLE *tbl)
-  : select_handler(thd, federatedx_hton, lex_unit), share(NULL), txn(NULL),
-    iop(NULL), stored_result(NULL), query_table(tbl),
-    query(thd->charset())
+  : select_handler(thd, federatedx_hton, lex_unit), 
+    federatedx_handler_base(thd, tbl)
 {
   query.length(0);
   lex_unit->print(&query,
@@ -290,10 +227,9 @@ ha_federatedx_select_handler::ha_federatedx_select_handler(
 }
 
 
-ha_federatedx_select_handler::~ha_federatedx_select_handler() {}
-
-int ha_federatedx_select_handler::init_scan()
+int federatedx_handler_base::init_scan_()
 {
+  THD *thd= query_table->in_use;
   int rc= 0;
 
   DBUG_ENTER("ha_federatedx_select_handler::init_scan");
@@ -318,7 +254,7 @@ err:
   DBUG_RETURN(HA_FEDERATEDX_ERROR_WITH_REMOTE_SYSTEM);
 }
 
-int ha_federatedx_select_handler::next_row()
+int federatedx_handler_base::next_row_(TABLE *table)
 {
   int rc= 0;
   FEDERATEDX_IO_ROW *row;
@@ -356,16 +292,10 @@ int ha_federatedx_select_handler::next_row()
 
 int ha_federatedx_select_handler::end_scan()
 {
-  DBUG_ENTER("ha_federatedx_derived_handler::end_scan");
-
   free_tmp_table(thd, table);
   table= 0;
 
-  (*iop)->free_result(stored_result);
-
-  free_share(txn, share);
-
-  DBUG_RETURN(0);
+  return federatedx_handler_base::end_scan_();
 }
 
 void ha_federatedx_select_handler::print_error(int error, myf error_flag)
