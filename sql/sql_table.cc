@@ -3073,6 +3073,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     while ((key2 = key_iterator2++) != key)
     {
       /*
+        Skip generating index if it is redundant.
+
         foreign_key_prefix(key, key2) returns 0 if key or key2, or both, is
         'generated', and a generated key is a prefix of the other key.
         Then we do not need the generated shorter key.
@@ -3238,22 +3240,19 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   key_info= *key_info_buffer;
   key_iterator.rewind();
   key_number=0;
-  for (; (key=key_iterator++) ; key_number++)
+  for (; (key=key_iterator++) ;)
   {
+    if (key->ignore)
+    {
+      /* Skip generating index if it is redundant */
+      continue;
+    }
+
     uint key_length=0;
     Create_field *auto_increment_key= 0;
     Key_part_spec *column;
 
     is_hash_field_needed= false;
-    if (key->ignore)
-    {
-      /* ignore redundant keys */
-      do
-        key=key_iterator++;
-      while (key && key->ignore);
-      if (!key)
-        break;
-    }
 
     switch (key->type) {
     case Key::MULTIPLE:
@@ -3711,7 +3710,7 @@ without_overlaps_err:
       create_info->period_info.unique_keys++;
     }
     key_info->is_ignored= key->key_create_info.is_ignored;
-    key_info++;
+    key_info++; key_number++;
   }
 
   if (!unique_key && !primary_key && !create_info->sequence &&
