@@ -370,6 +370,11 @@ public:
   const char *get_tmp_path() const
   { return tmp_path; }
 
+  static constexpr size_t max_tmp_path()
+  {
+    return sizeof(tmp_path) - 1;
+  }
+
   const LEX_CSTRING get_tmp_cstring_path() const
   {
     LEX_CSTRING tmp= { tmp_path, strlen(tmp_path) };
