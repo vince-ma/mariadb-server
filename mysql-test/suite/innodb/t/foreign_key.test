@@ -995,7 +995,7 @@ create table t1(a int primary key, b int) engine=innodb;
 --error ER_WRONG_FK_DEF
 alter table t2 add foreign key(a) references t1(a, b);
 create or replace table t1(a tinyint primary key) engine innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 alter table t2 add foreign key(a) references t1;
 create or replace table t1(b int primary key) engine innodb;
 --error ER_WRONG_FK_DEF

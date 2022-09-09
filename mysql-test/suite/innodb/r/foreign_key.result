@@ -964,7 +964,7 @@ alter table t2 add foreign key(a) references t1(a, b);
 ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
 create or replace table t1(a tinyint primary key) engine innodb;
 alter table t2 add foreign key(a) references t1;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 't2_ibfk_1' in the referenced table 't1'
 create or replace table t1(b int primary key) engine innodb;
 alter table t2 add foreign key(a) references t1;
 ERROR 42000: Incorrect foreign key definition for 'a': referenced field not found

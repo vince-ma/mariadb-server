@@ -3124,15 +3124,15 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
   {
     if (key->ignore)
     {
-      DBUG_ASSERT(key->foreign); // FIXME: right?
-      if (key->foreign) // FIXME: remove this condition?
+      if (key->foreign)
       {
         FK_info *fk;
+        /*
+          ignore_reason2 is set for SQLCOM_ALTER_TABLE, SQLCOM_CREATE_INDEX,
+          SQLCOM_DROP_INDEX.
+        */
         if (key->ignore_reason2)
-        {
-          DBUG_ASSERT(thd->lex->sql_command == SQLCOM_ALTER_TABLE);
           fk= key->ignore_reason2;
-        }
         else
         {
           DBUG_ASSERT(key->ignore_reason);
@@ -13066,19 +13066,26 @@ bool fk_prepare_create_table(THD *thd, Alter_info *alter_info,
     } // for (fk.foreign_fields)
     if (check_foreign)
     {
-      if (!fk.foreign_key)
+      for (const Alter_table_ctx::FK_add_new &new_fk: alter_ctx->fk_added)
       {
-        my_error(ER_FK_NO_INDEX_CHILD, MYF(0), fk.foreign_id.str,
-                fk.foreign_table.str);
-        return true;
-      }
-      // FIXME: check referenced index, remove dict_foreign_find_index() for
-      // referenced table.
-      if (!fk.find_referenced_key(ref_share))
-      {
-        my_error(ER_FK_NO_INDEX_PARENT, MYF(0), fk.foreign_id.str,
-                fk.referenced_table.str);
-        return true;
+        if (new_fk.fk->constraint_name.str == fk.foreign_id.str)
+        {
+          if (!fk.foreign_key)
+          {
+            my_error(ER_FK_NO_INDEX_CHILD, MYF(0), fk.foreign_id.str,
+                    fk.foreign_table.str);
+            return true;
+          }
+          // FIXME: check referenced index, remove dict_foreign_find_index() for
+          // referenced table.
+          if (!fk.find_referenced_key(ref_share))
+          {
+            my_error(ER_FK_NO_INDEX_PARENT, MYF(0), fk.foreign_id.str,
+                    fk.referenced_table.str);
+            return true;
+          }
+          break;
+        }
       }
     }
   } // for (foreign_keys)
