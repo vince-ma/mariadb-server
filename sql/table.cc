@@ -3380,7 +3380,6 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   LEX tmp_lex;
   KEY *unused1;
   uint unused2;
-  FK_list foreign_keys, referenced_keys;
   handlerton *hton= plugin_hton(db_plugin);
   LEX_CUSTRING frm= {0,0};
   LEX_CSTRING db_backup= thd->db;
@@ -3426,6 +3425,8 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   thd->reset_db(&db);
   lex_start(thd);
 
+  Alter_table_ctx alter_ctx(&db, &table_name);
+
   if (unlikely((error= parse_sql(thd, & parser_state, NULL) ||
                 sql_unusable_for_discovery(thd, hton, sql_copy))))
     goto ret;
@@ -3443,10 +3444,9 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
   promote_first_timestamp_column(&thd->lex->alter_info.create_list);
   thd->lex->create_info.alter_info= &thd->lex->alter_info;
-  file= mysql_create_frm_image(thd, {db, table_name}, {db, table_name},
-                               &thd->lex->create_info, &thd->lex->alter_info,
-                               C_ORDINARY_CREATE, &unused1, &unused2,
-                               foreign_keys, referenced_keys, &frm);
+  file= mysql_create_frm_image(thd, &alter_ctx, &thd->lex->create_info,
+                               &thd->lex->alter_info, // FIXME: don't pass alter_info
+                               C_ORDINARY_CREATE, &unused1, &unused2, &frm);
   error|= file == 0;
   delete file;
 

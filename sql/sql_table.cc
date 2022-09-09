@@ -93,6 +93,10 @@ static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *,
                                       FK_list &, FK_list &, int,
                                       Table_name table_name, Table_name new_name);
+/*
+  Helper to keep mysql_write_frm() and mysql_compare_tables() intact where
+  table_name and new_name are the same.
+*/
 static inline int
 mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            Alter_info *alter_info, uint *db_options,
@@ -4164,14 +4168,18 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
   return result;
 }
 
-handler *mysql_create_frm_image(THD *thd, Table_name table_name,
-                                Table_name new_name,
+handler *mysql_create_frm_image(THD *thd, Alter_table_ctx *alter_ctx,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info, int create_table_mode,
                                 KEY **key_info, uint *key_count,
-                                FK_list &foreign_keys, FK_list &referenced_keys,
                                 LEX_CUSTRING *frm)
 {
+  Table_name table_name=  {alter_ctx->db, alter_ctx->table_name};
+  Table_name new_name=    {alter_ctx->new_db, alter_ctx->new_name};
+
+  FK_list &foreign_keys=  alter_ctx->foreign_keys;
+  FK_list &referenced_keys= alter_ctx->referenced_keys;
+
   uint		db_options;
   handler       *file;
   DBUG_ENTER("mysql_create_frm_image");
@@ -4479,10 +4487,7 @@ int create_table_impl(THD *thd,
   const LEX_CSTRING &orig_table_name= alter_ctx->table_name;
   const LEX_CSTRING &db=              alter_ctx->new_db;
   const LEX_CSTRING &table_name=      alter_ctx->tmp_name;
-  const LEX_CSTRING &new_name=        alter_ctx->new_name;
   const LEX_CSTRING &path=            alter_ctx->get_tmp_cstring_path();
-  FK_list &foreign_keys=              alter_ctx->foreign_keys;
-  FK_list &referenced_keys=           alter_ctx->referenced_keys;
 
   LEX_CSTRING	*alias;
   handler	*file= 0;
@@ -4728,10 +4733,8 @@ int create_table_impl(THD *thd,
                            &path, &db, &table_name, frm_only);
     debug_crash_here("ddl_log_create_before_create_frm");
 
-    file= mysql_create_frm_image(thd, {orig_db, orig_table_name}, {db, new_name},
-                                 create_info,
-                                 alter_info, create_table_mode, key_info,
-                                 key_count, foreign_keys, referenced_keys, frm);
+    file= mysql_create_frm_image(thd, alter_ctx, create_info, alter_info,
+                                 create_table_mode, key_info, key_count, frm);
     /*
       TODO: remove this check of thd->is_error() (now it intercept
       errors in some val_*() methods and bring some single place to

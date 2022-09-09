@@ -143,15 +143,12 @@ int mysql_create_table_no_lock(THD *thd,
                                int create_table_mode, TABLE_LIST *table);
 
 handler *mysql_create_frm_image(THD *thd,
-                                Table_name table_name,
-                                Table_name new_table_name,
+                                Alter_table_ctx *alter_ctx,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info,
                                 int create_table_mode,
                                 KEY **key_info,
                                 uint *key_count,
-                                FK_list &foreign_keys,
-                                FK_list &referenced_keys,
                                 LEX_CUSTRING *frm);
 
 int mysql_discard_or_import_tablespace(THD *thd,
