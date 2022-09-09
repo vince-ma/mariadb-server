@@ -4469,16 +4469,21 @@ static
 int create_table_impl(THD *thd,
                       DDL_LOG_STATE *ddl_log_state_create,
                       DDL_LOG_STATE *ddl_log_state_rm,
-                      const LEX_CSTRING &orig_db,
-                      const LEX_CSTRING &orig_table_name,
-                      const LEX_CSTRING &db, const LEX_CSTRING &table_name,
-                      const LEX_CSTRING &new_name,
-                      const LEX_CSTRING &path, const DDL_options_st options,
+                      Alter_table_ctx *alter_ctx,
+                      const DDL_options_st options,
                       HA_CREATE_INFO *create_info, Alter_info *alter_info,
                       int create_table_mode, bool *is_trans, KEY **key_info,
-                      uint *key_count, FK_list &foreign_keys,
-                      FK_list &referenced_keys, LEX_CUSTRING *frm)
+                      uint *key_count, LEX_CUSTRING *frm)
 {
+  const LEX_CSTRING &orig_db=         alter_ctx->db;
+  const LEX_CSTRING &orig_table_name= alter_ctx->table_name;
+  const LEX_CSTRING &db=              alter_ctx->new_db;
+  const LEX_CSTRING &table_name=      alter_ctx->tmp_name;
+  const LEX_CSTRING &new_name=        alter_ctx->new_name;
+  const LEX_CSTRING &path=            alter_ctx->get_tmp_cstring_path();
+  FK_list &foreign_keys=              alter_ctx->foreign_keys;
+  FK_list &referenced_keys=           alter_ctx->referenced_keys;
+
   LEX_CSTRING	*alias;
   handler	*file= 0;
   int		error= 1;
@@ -4825,10 +4830,9 @@ int mysql_create_table_no_lock(THD *thd,
   uint not_used_2;
   int res;
   uint path_length;
-  char path[FN_REFLEN + 1];
-  LEX_CSTRING cpath;
+  Alter_table_ctx alter_ctx(db, table_name);
+  char *path= const_cast<char *>(alter_ctx.get_tmp_path());
   LEX_CUSTRING frm= {0,0};
-  FK_list foreign_keys, referenced_keys;
 
   DBUG_ASSERT(create_info->default_table_charset);
 
@@ -4848,14 +4852,11 @@ int mysql_create_table_no_lock(THD *thd,
       return true;
     }
   }
-  lex_string_set3(&cpath, path, path_length);
 
   res= create_table_impl(thd, ddl_log_state_create, ddl_log_state_rm,
-                         *db, *table_name, *db, *table_name, *table_name,
-                         cpath, *create_info, create_info,
+                         &alter_ctx, *create_info, create_info,
                          alter_info, create_table_mode,
-                         is_trans, &not_used_1, &not_used_2, foreign_keys, referenced_keys,
-                         &frm);
+                         is_trans, &not_used_1, &not_used_2, &frm);
   my_free(const_cast<uchar*>(frm.str));
 
   if (!res && create_info->sequence)
@@ -10969,14 +10970,10 @@ do_continue:;
     table creations.
   */
   error= create_table_impl(thd, (DDL_LOG_STATE*) 0, (DDL_LOG_STATE*) 0,
-                           alter_ctx.db, alter_ctx.table_name,
-                           alter_ctx.new_db, alter_ctx.tmp_name,
-                           alter_ctx.new_name,
-                           alter_ctx.get_tmp_cstring_path(),
+                           &alter_ctx,
                            thd->lex->create_info, create_info, alter_info,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
-                           &key_info, &key_count, alter_ctx.foreign_keys,
-                           alter_ctx.referenced_keys, &frm);
+                           &key_info, &key_count, &frm);
   reenable_binlog(thd);
 
   debug_crash_here("ddl_log_alter_after_create_frm");

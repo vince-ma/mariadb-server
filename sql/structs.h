@@ -70,6 +70,10 @@ typedef struct st_keyfile_info {	/* used with ha_info() */
 } KEYFILE_INFO;
 
 
+/*
+  NB: struct cannot be extended via inheritance since KEY_PART_INFO is organized
+  into contiguous array of KEY::key_part.
+*/
 typedef struct st_key_part_info {	/* Info about a key part */
   Field *field;                         /* the Field object for the indexed
                                            prefix of the original table Field.
@@ -95,6 +99,11 @@ typedef struct st_key_part_info {	/* Info about a key part */
 class engine_option_value;
 struct ha_index_option_struct;
 
+
+/*
+  NB: struct cannot be extended via inheritance since KEY is organized
+  into contiguous array of TABLE_SHARE::key_info.
+*/
 typedef struct st_key {
   uint	key_length;			/* total length of user defined key parts  */
   ulong flags;                          /* dupp key and pack flags */

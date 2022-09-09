@@ -313,6 +313,15 @@ public:
 
   Alter_table_ctx(THD *thd, TABLE_LIST *table_list, uint tables_opened_arg,
                   const LEX_CSTRING *new_db_arg, const LEX_CSTRING *new_name_arg);
+  /* Ctor for mysql_create_table_no_lock() */
+  Alter_table_ctx(const LEX_CSTRING *db, const LEX_CSTRING *table_name)
+  {
+    this->db= *db;
+    this->table_name= *table_name;
+    this->new_db= *db;
+    this->tmp_name= *table_name;
+    this->new_name= *table_name;
+  }
 
   /**
      @return true if the table is moved to another database or a new table
