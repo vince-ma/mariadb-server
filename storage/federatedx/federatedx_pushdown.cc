@@ -34,8 +34,13 @@
     set global federated_pushdown=1;
 */
 
+/*
+  Check that all tables in the sel_lex use FederatedX storage engine.
 
-static std::pair<handlerton *, TABLE *> get_handlerton(SELECT_LEX *sel_lex)
+  @return
+    the storage engine's handlerton and an example table.
+*/
+static std::pair<handlerton *, TABLE *> get_fedx_handlerton(SELECT_LEX *sel_lex)
 {
   handlerton *hton= nullptr;
   TABLE *table= nullptr;
@@ -45,9 +50,12 @@ static std::pair<handlerton *, TABLE *> get_handlerton(SELECT_LEX *sel_lex)
   {
     if (!tbl->table)
       return {nullptr, nullptr};
+    auto next_hton= tbl->table->file->partition_ht();
+    if (next_hton->db_type != DB_TYPE_FEDERATED_DB)
+      return {nullptr, nullptr};
     if (!hton)
     {
-      hton= tbl->table->file->partition_ht();
+      hton= next_hton;
       table= tbl->table;
     }
     else if (hton != tbl->table->file->partition_ht())
@@ -59,7 +67,7 @@ static std::pair<handlerton *, TABLE *> get_handlerton(SELECT_LEX *sel_lex)
   {
     for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
     {
-      auto inner_ht= get_handlerton(sl);
+      auto inner_ht= get_fedx_handlerton(sl);
       if (!hton)
       {
         hton= inner_ht.first;
@@ -78,21 +86,18 @@ static std::pair<handlerton *, TABLE *> get_handlerton(SELECT_LEX *sel_lex)
 
   @return
     the storage engine's handlerton and an example table.
-
-  @todo
-    Why does this need to be so generic? We know we need
-    tables with hton == federatedx_hton, why not only look for
-    those tables?
 */
 static std::pair<handlerton *, TABLE *>
-get_handlerton_for_unit(SELECT_LEX_UNIT *lex_unit)
+get_fedx_handlerton_for_unit(SELECT_LEX_UNIT *lex_unit)
 {
   handlerton *hton= nullptr;
   TABLE *table= nullptr;
   for (auto sel_lex= lex_unit->first_select(); sel_lex;
        sel_lex= sel_lex->next_select())
   {
-    auto next_ht= get_handlerton(sel_lex);
+    auto next_ht= get_fedx_handlerton(sel_lex);
+    if (!next_ht.first)
+      return {nullptr, nullptr};
     if (!hton)
     {
       hton= next_ht.first;
@@ -113,7 +118,7 @@ create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived)
 
   SELECT_LEX_UNIT *unit= derived->derived;
 
-  auto hton= get_handlerton_for_unit(unit);
+  auto hton= get_fedx_handlerton_for_unit(unit);
   if (!hton.first)
     return nullptr;
 
@@ -153,10 +158,6 @@ int federatedx_handler_base::end_scan_()
   DBUG_RETURN(0);
 }
 
-void ha_federatedx_derived_handler::print_error(int, unsigned long)
-{
-}
-
 
 static select_handler *create_federatedx_select_handler(
   THD *thd, SELECT_LEX *sel_lex)
@@ -164,7 +165,7 @@ static select_handler *create_federatedx_select_handler(
   if (!use_pushdown)
     return nullptr;
 
-  auto hton= get_handlerton(sel_lex);
+  auto hton= get_fedx_handlerton(sel_lex);
   if (!hton.first)
     return nullptr;
 
@@ -180,7 +181,7 @@ static select_handler *create_federatedx_unit_handler(
   if (!use_pushdown)
     return nullptr;
 
-  auto hton= get_handlerton_for_unit(sel_unit);
+  auto hton= get_fedx_handlerton_for_unit(sel_unit);
   if (!hton.first)
     return nullptr;
 
@@ -296,9 +297,4 @@ int ha_federatedx_select_handler::end_scan()
   table= 0;
 
   return federatedx_handler_base::end_scan_();
-}
-
-void ha_federatedx_select_handler::print_error(int error, myf error_flag)
-{
-  select_handler::print_error(error, error_flag);
 }

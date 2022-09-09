@@ -667,23 +667,100 @@ NULL	PUSHED UNIT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 NULL	PUSHED UNIT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
-# UNION of mixed Federated/MyISAM tables
+# UNIONs of mixed Federated/MyISAM tables, pushing parts of UNIONs
 CREATE TABLE federated.t3 (a varchar(30)) ENGINE=MyISAM;
-INSERT INTO federated.t3 VALUES ('myisam1'), ('myisam2'), ('myisam3');
+CREATE TABLE federated.t4 (a varchar(30)) ENGINE=MyISAM;
+INSERT INTO federated.t3 VALUES ('t3_myisam1'), ('t3_myisam2'), ('t3_myisam3');
+INSERT INTO federated.t3 VALUES ('t4_myisam1'), ('t4_myisam2'), ('t4_myisam3');
 SELECT * FROM federated.t1 UNION SELECT * FROM federated.t3;
 a
 abc
 bcd
 cde
-myisam1
-myisam2
-myisam3
+t3_myisam1
+t3_myisam2
+t3_myisam3
+t4_myisam1
+t4_myisam2
+t4_myisam3
 EXPLAIN SELECT * FROM federated.t1 UNION SELECT * FROM federated.t3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
-2	UNION	t3	ALL	NULL	NULL	NULL	NULL	3	
+2	UNION	t3	ALL	NULL	NULL	NULL	NULL	6	
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
-DROP TABLES federated.t1, federated.t2, federated.t3;
+SELECT * FROM federated.t1 UNION ALL
+SELECT * FROM federated.t3 EXCEPT
+SELECT * FROM federated.t2;
+a
+t3_myisam1
+t3_myisam2
+t3_myisam3
+t4_myisam1
+t4_myisam2
+t4_myisam3
+EXPLAIN SELECT * FROM federated.t1 UNION ALL
+SELECT * FROM federated.t3 EXCEPT
+SELECT * FROM federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	UNION	t3	ALL	NULL	NULL	NULL	NULL	6	
+3	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT * FROM federated.t3 UNION ALL
+SELECT * FROM federated.t1 EXCEPT
+SELECT * FROM federated.t4 INTERSECT
+SELECT * FROM federated.t2;
+a
+t3_myisam1
+t3_myisam2
+t3_myisam3
+t4_myisam1
+t4_myisam2
+t4_myisam3
+abc
+bcd
+cde
+EXPLAIN SELECT * FROM federated.t3 UNION ALL
+SELECT * FROM federated.t1 EXCEPT
+SELECT * FROM federated.t4 INTERSECT
+SELECT * FROM federated.t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	6	
+2	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+5	EXCEPT	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+4	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	5	
+NULL	INTERSECT RESULT	<intersect3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNIT RESULT	<unit1,2,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT * FROM federated.t2 UNION ALL
+SELECT * FROM federated.t3 EXCEPT
+SELECT * FROM federated.t4 INTERSECT
+SELECT * FROM federated.t1;
+a
+abc
+bcd
+cde
+def
+efg
+t3_myisam1
+t3_myisam2
+t3_myisam3
+t4_myisam1
+t4_myisam2
+t4_myisam3
+EXPLAIN SELECT * FROM federated.t2 UNION ALL
+SELECT * FROM federated.t3 EXCEPT
+SELECT * FROM federated.t4 INTERSECT
+SELECT * FROM federated.t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+2	UNION	t3	ALL	NULL	NULL	NULL	NULL	6	
+5	EXCEPT	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+4	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	3	
+NULL	INTERSECT RESULT	<intersect3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNIT RESULT	<unit1,2,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+DROP TABLES federated.t1, federated.t2, federated.t3, federated.t4;
 connection slave;
 DROP TABLE federated.t1, federated.t2;
 connection default;

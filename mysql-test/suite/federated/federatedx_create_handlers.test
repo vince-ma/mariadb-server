@@ -383,14 +383,42 @@ PREPARE stmt FROM "EXPLAIN SELECT * from federated.t1 INTERSECT
 EXECUTE stmt;
 EXECUTE stmt;
 
---echo # UNION of mixed Federated/MyISAM tables
+--echo # UNIONs of mixed Federated/MyISAM tables, pushing parts of UNIONs
 CREATE TABLE federated.t3 (a varchar(30)) ENGINE=MyISAM;
+CREATE TABLE federated.t4 (a varchar(30)) ENGINE=MyISAM;
 
-INSERT INTO federated.t3 VALUES ('myisam1'), ('myisam2'), ('myisam3');
+INSERT INTO federated.t3 VALUES ('t3_myisam1'), ('t3_myisam2'), ('t3_myisam3');
+INSERT INTO federated.t3 VALUES ('t4_myisam1'), ('t4_myisam2'), ('t4_myisam3');
+
 SELECT * FROM federated.t1 UNION SELECT * FROM federated.t3;
 EXPLAIN SELECT * FROM federated.t1 UNION SELECT * FROM federated.t3;
 
-DROP TABLES federated.t1, federated.t2, federated.t3;
+SELECT * FROM federated.t1 UNION ALL
+  SELECT * FROM federated.t3 EXCEPT
+  SELECT * FROM federated.t2;
+EXPLAIN SELECT * FROM federated.t1 UNION ALL
+  SELECT * FROM federated.t3 EXCEPT
+  SELECT * FROM federated.t2;
+
+SELECT * FROM federated.t3 UNION ALL
+  SELECT * FROM federated.t1 EXCEPT
+  SELECT * FROM federated.t4 INTERSECT
+  SELECT * FROM federated.t2;
+EXPLAIN SELECT * FROM federated.t3 UNION ALL
+  SELECT * FROM federated.t1 EXCEPT
+  SELECT * FROM federated.t4 INTERSECT
+  SELECT * FROM federated.t2;
+
+SELECT * FROM federated.t2 UNION ALL
+  SELECT * FROM federated.t3 EXCEPT
+  SELECT * FROM federated.t4 INTERSECT
+  SELECT * FROM federated.t1;
+EXPLAIN SELECT * FROM federated.t2 UNION ALL
+  SELECT * FROM federated.t3 EXCEPT
+  SELECT * FROM federated.t4 INTERSECT
+  SELECT * FROM federated.t1;
+
+DROP TABLES federated.t1, federated.t2, federated.t3, federated.t4;
 
 connection slave;
 DROP TABLE federated.t1, federated.t2;
