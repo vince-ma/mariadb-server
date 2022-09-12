@@ -12928,40 +12928,13 @@ bool fk_prepare_create_table(THD *thd, Alter_info *alter_info,
 {
   List_iterator_fast<Create_field> create_list_it(alter_info->create_list);
   FK_list &foreign_keys= alter_ctx->foreign_keys;
-  mbd::map<Table_name, Share_acquire, Table_name_lt> ref_shares;
+  Share_map ref_shares;
   const bool check_foreign= thd->variables.check_foreign();
 
   /** Preacquire shares */
   for (const FK_info &fk: foreign_keys)
-  {
-    if (fk.self_ref())
-      continue;
-    Table_name ref(fk.ref_db(), fk.referenced_table);
-    if (lower_case_table_names)
-      ref .lowercase(thd->mem_root);
-    if (ref_shares.find(ref) != ref_shares.end())
-      continue;
-    TABLE_LIST tl;
-    tl.init_one_table(&ref.db, &ref.name, NULL, TL_IGNORE);
-    Share_acquire sa(thd, tl);
-    if (sa.fk_error(thd))
-    {
-      my_error(ER_WRONG_FK_DEF, MYF(0), ref.name.str,
-               "referenced table not found");
+    if (fk.get_referenced_share(thd, &ref_shares))
       return true;
-    }
-    if (!sa.share)
-    {
-      DBUG_ASSERT(!check_foreign);
-      continue; // skip non-existing referenced shares, allow CREATE
-    }
-    if (!ref_shares.insert(ref, std::move(sa)))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      return true;
-    }
-    DBUG_ASSERT(!sa.share);
-  }
 
   for (FK_info &fk: foreign_keys)
   {

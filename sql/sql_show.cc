@@ -8214,29 +8214,61 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
                            HA_STATUS_NO_LOCK |
                            HA_STATUS_TIME);
 
-    FK_info *f_key_info;
-    List_iterator_fast<FK_info> it(show_table->s->foreign_keys);
-    while ((f_key_info= it++))
+    /** Preacquire shares */
+    Share_map ref_shares;
+    for (const FK_info &fk: show_table->s->foreign_keys)
+      // FIXME: push warning instead error
+      if (fk.get_referenced_share(thd, &ref_shares))
+        return true;
+
+    for (const FK_info &fk: show_table->s->foreign_keys)
     {
+      TABLE_SHARE *ref_share= NULL;
+      Lex_cstring ref_key_name;
+
+      if (!fk.self_ref())
+      {
+        Table_name ref(fk.ref_db(), fk.referenced_table);
+        auto ref_it= ref_shares.find(ref);
+        if (ref_it != ref_shares.end())
+        {
+          ref_share= ref_it->second.share;
+          DBUG_ASSERT(ref_share);
+        }
+      }
+
+      if (ref_share)
+      {
+        if (KEY *k= fk.find_referenced_key(ref_share))
+          ref_key_name= k->name;
+        else
+        {
+          // FIXME: push warning
+        }
+      }
+      else if (fk.self_ref())
+      {
+        // FIXME: test self_ref()
+      }
+
       restore_record(table, s->default_values);
       table->field[0]->store(STRING_WITH_LEN("def"), cs);
-      table->field[1]->store(db_name->str, db_name->length, cs);
-      table->field[9]->store(table_name->str, table_name->length, cs);
-      table->field[2]->store(f_key_info->foreign_id.str,
-                             f_key_info->foreign_id.length, cs);
+      table->field[1]->store(db_name, cs);
+      table->field[9]->store(table_name, cs);
+      table->field[2]->store(fk.foreign_id, cs);
       table->field[3]->store(STRING_WITH_LEN("def"), cs);
-      table->field[4]->store(f_key_info->ref_db().str,
-                             f_key_info->ref_db().length, cs);
-      table->field[10]->store(f_key_info->referenced_table.str,
-                             f_key_info->referenced_table.length, cs);
-      table->field[5]->store(f_key_info->foreign_id.str,
-                             f_key_info->foreign_id.length, cs);
-      table->field[5]->set_notnull();
+      table->field[4]->store(fk.ref_db(), cs);
+      table->field[10]->store(fk.referenced_table, cs);
+      if (!ref_key_name.is_empty())
+      {
+        table->field[5]->store(ref_key_name, cs);
+        table->field[5]->set_notnull();
+      }
       table->field[6]->store(STRING_WITH_LEN("NONE"), cs);
-      s= fk_option_name(f_key_info->update_method);
-      table->field[7]->store(s->str, s->length, cs);
-      s= fk_option_name(f_key_info->delete_method);
-      table->field[8]->store(s->str, s->length, cs);
+      s= fk_option_name(fk.update_method);
+      table->field[7]->store(s, cs);
+      s= fk_option_name(fk.delete_method);
+      table->field[8]->store(s, cs);
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);
     }

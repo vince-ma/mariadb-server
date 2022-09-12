@@ -121,9 +121,10 @@ public:
   TABLE_SHARE *share;
 
   Share_acquire() : flush_unused(false), share(NULL) {}
-  Share_acquire(THD *thd, TABLE_LIST &tl, uint flags= 0) : flush_unused(false)
+  template <class TABLE_NAME>
+  Share_acquire(THD *thd, TABLE_NAME &tn, uint flags= 0) : flush_unused(false)
   {
-    acquire(thd, tl, flags);
+    acquire(thd, tn, flags);
   }
   Share_acquire(const Share_acquire &src)= delete;
 
@@ -136,6 +137,12 @@ public:
   ~Share_acquire();
   bool fk_error(THD *thd, bool use_check_foreign= true) const;
   void acquire(THD *thd, TABLE_LIST &tl, uint flags= 0);
+  void acquire(THD *thd, Table_name &tn, uint flags= 0)
+  {
+    TABLE_LIST tl;
+    tl.init_one_table(&tn.db, &tn.name, NULL, TL_IGNORE);
+    return acquire(thd, tl, flags);
+  }
   void release()
   {
     if (share)
@@ -147,6 +154,10 @@ public:
     }
   }
 };
+
+
+struct Share_map: public mbd::map<Table_name, Share_acquire, Table_name_lt>
+{};
 
 
 /**

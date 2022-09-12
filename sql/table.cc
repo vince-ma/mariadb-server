@@ -9915,13 +9915,86 @@ void FK_info::print(String& out)
 
 
 /**
+  @brief Acquire referenced share for table name.
+*/
+
+bool
+FK_info::get_referenced_share(THD *thd, Share_acquire *sa) const
+{
+  if (self_ref())
+    return false;
+
+  Table_name ref(ref_db(), referenced_table);
+  /*
+    TODO: maybe lowercase() in Table_name ctor?
+          Maybe keep that already lowercased in FK_info?
+  */
+  if (lower_case_table_names)
+    ref.lowercase(thd->mem_root);
+
+  sa->acquire(thd, ref);
+  if (sa->fk_error(thd))
+  {
+    my_error(ER_WRONG_FK_DEF, MYF(0), ref.name.str,
+              "referenced table not found");
+    return true;
+  }
+
+  return false;
+}
+
+
+/**
+  @brief Similar to above version, but don't acquire if share already exists
+         in ref_shares. Otherwise put acquired share into ref_shares.
+*/
+
+bool
+FK_info::get_referenced_share(THD *thd, Share_map *ref_shares) const
+{
+  if (self_ref())
+    return false;
+
+  Table_name ref(ref_db(), referenced_table);
+  /*
+    TODO: maybe lowercase() in Table_name ctor?
+          Maybe keep that already lowercased in FK_info?
+  */
+  if (lower_case_table_names)
+    ref.lowercase(thd->mem_root);
+  if (ref_shares->find(ref) != ref_shares->end())
+    return false;
+
+  Share_acquire sa(thd, ref);
+  if (sa.fk_error(thd))
+  {
+    my_error(ER_WRONG_FK_DEF, MYF(0), ref.name.str,
+              "referenced table not found");
+    return true;
+  }
+  if (!sa.share)
+  {
+    DBUG_ASSERT(!thd->variables.check_foreign());
+    return false; // skip non-existing referenced shares, allow CREATE
+  }
+  if (!ref_shares->insert(ref, std::move(sa)))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  DBUG_ASSERT(!sa.share);
+  return false;
+}
+
+
+/**
   @brief SQL layer adaptation of dict_foreign_find_index()
 
   @param ref_share  Referenced table share
 
   @return KEY which FK_info is referring to or NULL
 */
-KEY * FK_info::find_referenced_key(TABLE_SHARE *ref_share)
+KEY * FK_info::find_referenced_key(TABLE_SHARE *ref_share) const
 {
   uint i; // FIXME: remove i?
   KEY *key;
@@ -9930,21 +10003,21 @@ KEY * FK_info::find_referenced_key(TABLE_SHARE *ref_share)
   DBUG_ASSERT(foreign_fields.elements == referenced_fields.elements);
   DBUG_ASSERT(foreign_key->user_defined_key_parts >= foreign_fields.elements);
 
-  List_iterator_fast<Lex_cstring> rf_it(referenced_fields);
-
   for (i= 0, key= ref_share->key_info; i < ref_share->keys; i++, key++)
   {
     if (key->user_defined_key_parts < referenced_fields.elements)
       continue;
-    rf_it.rewind();
     KEY_PART_INFO *rkp= key->key_part;
     KEY_PART_INFO *fkp= foreign_key->key_part;
-    Lex_cstring *rf;
-    for (rf= rf_it++; rf; rf= rf_it++, rkp++, fkp++)
+    bool found= true;
+    for (const Lex_cstring &rf: referenced_fields)
     {
-      // FIXME: skip column prefix index
-      if (0 != cmp_ident(rkp->field->field_name, *rf))
+      // FIXME: skip column prefix index (see dict_foreign_find_index())
+      if (0 != cmp_ident(rkp->field->field_name, rf))
+      {
+        found= false;
         break;
+      }
 
       if (fkp->key_part_flag & HA_CREATE_TABLE)
       {
@@ -9956,13 +10029,17 @@ KEY * FK_info::find_referenced_key(TABLE_SHARE *ref_share)
         fk_type= fkp->field->type_handler();
 
       if (rkp->field->type_handler() != fk_type)
+      {
+        found= false;
         break;
+      }
       // FIXME: test different charsets after match?
       // Note: fkp->field is not initialized
       // DBUG_ASSERT(rkp->field->result_type() == fkp->field->result_type());
       // DBUG_ASSERT(rkp->field->cmp_type() == fkp->field->cmp_type());
+      rkp++, fkp++;
     }
-    if (rf)
+    if (!found)
       continue; /* not found */
     return key;
   }

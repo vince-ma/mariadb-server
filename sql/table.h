@@ -67,6 +67,9 @@ class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
 class Open_table_context;
+class Share_acquire;
+struct Share_map;
+struct Table_name_lt;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -1978,7 +1981,10 @@ public:
   Table_name for_table(MEM_ROOT *mem_root) const;
   Table_name ref_table(MEM_ROOT *mem_root) const;
   void print(String &out);
-  KEY * find_referenced_key(TABLE_SHARE *ref_share);
+
+  bool get_referenced_share(THD *thd, Share_acquire *sa) const;
+  bool get_referenced_share(THD *thd, Share_map *ref_shares) const;
+  KEY * find_referenced_key(TABLE_SHARE *ref_share) const;
 };
 
 typedef class FK_info FOREIGN_KEY_INFO;

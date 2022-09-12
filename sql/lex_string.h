@@ -110,6 +110,11 @@ class Lex_cstring : public LEX_CSTRING, public Sql_alloc
       return 1;
     return strcmp(str, rhs);
   }
+  bool is_empty() const
+  {
+    DBUG_ASSERT(!length || str);
+    return length == 0;
+  }
 };
 
 
