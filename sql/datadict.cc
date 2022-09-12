@@ -419,7 +419,7 @@ int TABLE_SHARE::fk_write_shadow_frm()
   uchar * pos;
   size_t frm_size;
   Extra2_info extra2;
-  Foreign_key_io foreign_key_io;
+  Foreign_key_io foreign_key_io(this);
 
   int err= read_frm_image(&frm_src, &frm_size);
   if (err)

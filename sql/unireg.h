@@ -176,8 +176,12 @@ class Key;
 class Foreign_key;
 class Foreign_key_io: public BinaryStringBuffer<512>
 {
+  TABLE_SHARE *share;
+  KEY *key_info;
+
 public:
   static const ulonglong fk_io_version= 0;
+
   struct Pos
   {
     uchar *pos;
@@ -188,6 +192,7 @@ public:
       end= pos + image.length;
     }
   };
+
   /* read */
 private:
   static bool read_length(size_t &out, Pos &p)
@@ -214,8 +219,9 @@ private:
     return false;
   }
 public:
-  Foreign_key_io() {}
-  bool parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING &image);
+  Foreign_key_io(TABLE_SHARE *share) :
+    share{share}, key_info{share->key_info} {}
+  bool parse(THD *thd, LEX_CUSTRING &image);
 
   /* write */
 private:
@@ -235,8 +241,9 @@ private:
   {
     return net_length_size(str.length) + str.length;
   }
-
 public:
+  Foreign_key_io(KEY *key_info) :
+    share{NULL}, key_info{key_info} {}
   ulonglong fk_size(FK_info &fk);
   ulonglong hint_size(FK_info &rk);
   void store_fk(FK_info &fk, uchar *&pos);

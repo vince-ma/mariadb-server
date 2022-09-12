@@ -242,7 +242,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   LEX_CUSTRING frm= {0,0};
   StringBuffer<MAX_FIELD_WIDTH> vcols;
   Field_data_type_info_image field_data_type_info_image;
-  Foreign_key_io foreign_key_io;
+  Foreign_key_io foreign_key_io(key_info);
   DBUG_ENTER("build_frm_image");
 
  /* If fixed row records, we need one bit to check for deleted rows */
@@ -1257,6 +1257,7 @@ ulonglong Foreign_key_io::fk_size(FK_info &fk)
   store_size+= string_size(fk.referenced_table);
   store_size+= net_length_size(fk.update_method);
   store_size+= net_length_size(fk.delete_method);
+  store_size+= net_length_size(fk.foreign_key - key_info);
   store_size+= net_length_size(fk.foreign_fields.elements);
   DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
   List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
@@ -1289,6 +1290,7 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
   pos= store_string(pos, fk.referenced_table);
   pos= store_length(pos, fk.update_method);
   pos= store_length(pos, fk.delete_method);
+  pos= store_length(pos, fk.foreign_key - key_info);
   pos= store_length(pos, fk.foreign_fields.elements);
   DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
   List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
@@ -1365,11 +1367,13 @@ bool Foreign_key_io::store(FK_list &foreign_keys, FK_list &referenced_keys)
   return false;
 }
 
-bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
+bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
 {
+  TABLE_SHARE *s= share;
   Pos p(image);
   size_t version, fk_count, rk_count, stored_rk_count, hint_count;
   Lex_cstring hint_db, hint_table;
+  size_t key_num;
 
   if (read_length(version, p))
   {
@@ -1414,6 +1418,13 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
       return true;
     if (read_length(delete_method, p))
       return true;
+    if (read_length(key_num, p))
+      return true;
+    DBUG_ASSERT(s->keys);
+    // TODO: put any warnings or debug messages on what was failed.
+    if (key_num >= s->keys)
+      return true;
+    dst->foreign_key= s->key_info + key_num;
     if (update_method > FK_OPTION_SET_DEFAULT || delete_method > FK_OPTION_SET_DEFAULT)
       return true;
     dst->update_method= (enum_fk_option) update_method;

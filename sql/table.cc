@@ -1685,7 +1685,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   plugin_ref se_plugin= 0;
   bool vers_can_native= false, frm_created= 0;
   Field_data_type_info_array field_data_type_info_array;
-  Foreign_key_io foreign_key_io;
+  Foreign_key_io foreign_key_io(this);
 
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
@@ -3224,7 +3224,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
 
   if (extra2.foreign_key_info.length &&
-      foreign_key_io.parse(thd, this, extra2.foreign_key_info))
+      foreign_key_io.parse(thd, extra2.foreign_key_info))
     goto err;
 
   /*
