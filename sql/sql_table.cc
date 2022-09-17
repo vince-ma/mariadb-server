@@ -3132,7 +3132,15 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
           SQLCOM_DROP_INDEX.
         */
         if (key->ignore_reason2)
+        {
           fk= key->ignore_reason2;
+          /*
+            Currently fk.foreign_key points to s->key_info of the old share.
+            Now, as ALTER TABLE may drop and add indexes we must update this
+            with a key from the new key_info (via update_foreign_key()).
+          */
+          fk->foreign_idx= NULL;
+        }
         else
         {
           DBUG_ASSERT(key->ignore_reason);
@@ -3210,7 +3218,7 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
       DBUG_ASSERT(fkey.constraint_name.str);
       fk->assign(fkey, new_name);
       fk->foreign_id= fkey.constraint_name;
-      fk->foreign_key= key_info;
+      fk->foreign_idx= key_info;
       if (foreign_keys.push_back(fk))
       {
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -3261,7 +3269,7 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
     /* Update foreign_key for all foreign keys with ignore_reason of this key */
     auto r= ignore_fixup.equal_range(key);
     for (auto fixup_it= r.first; fixup_it != r.second; fixup_it++)
-      fixup_it->second->foreign_key= key_info;
+      fixup_it->second->foreign_idx= key_info;
 
 
     uint key_length=0;
@@ -3731,6 +3739,24 @@ without_overlaps_err:
     key_info++; key_number++;
   }
 
+  for (FK_info &fk: foreign_keys)
+    if (!fk.foreign_idx)
+      if (!(fk.foreign_idx= fk.find_idx(*key_info_buffer, *key_count, true)))
+      {
+        my_error(ER_FK_NO_INDEX_CHILD, MYF(0), fk.foreign_id.str,
+                 fk.foreign_table.str);
+        DBUG_RETURN(true);
+      }
+
+  for (FK_info &rk: referenced_keys)
+    if (!rk.find_idx(*key_info_buffer, *key_count, false))
+    {
+      // FIXME: ER_DROP_INDEX_FK is deprecated
+      my_error(ER_FK_NO_INDEX_PARENT, MYF(0), rk.foreign_table.str,
+               rk.foreign_id.str, rk.referenced_table.str);
+      DBUG_RETURN(true);
+    }
+
   if (!unique_key && !primary_key && !create_info->sequence &&
       (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))
   {
@@ -3759,6 +3785,15 @@ without_overlaps_err:
   if (!(create_info->options & HA_SKIP_KEY_SORT))
   {
     /*
+      FK_info contains pointer to key_info. After my_qsort() we must update it.
+
+      FIXME: test when qsort() returns different order.
+    */
+    std::multimap<Lex_cstring, FK_info *, Lex_ident_lt> fk_fixup;
+    for (FK_info &fk: foreign_keys)
+      fk_fixup.insert({fk.foreign_idx->name, &fk});
+
+    /*
       Sort keys in optimized order.
 
       Note: PK must be always first key, otherwise init_from_binary_frm_image()
@@ -3766,6 +3801,22 @@ without_overlaps_err:
     */
     my_qsort((uchar*) *key_info_buffer, *key_count, sizeof(KEY),
              (qsort_cmp) sort_keys);
+
+    for (key_info= *key_info_buffer, key_number= 0;
+         key_number < *key_count; key_number++, key_info++)
+    {
+      auto r= fk_fixup.equal_range(key_info->name);
+      for (auto it= r.first; it != r.second; it++)
+      {
+        /* key didn't move */
+        if (it->second->foreign_idx == key_info)
+        {
+          DBUG_ASSERT(it == r.first);
+          break;
+        }
+        it->second->foreign_idx= key_info;
+      }
+    }
   }
   create_info->null_bits= null_fields;
 
@@ -13043,18 +13094,14 @@ bool fk_prepare_create_table(THD *thd, Alter_info *alter_info,
       {
         if (new_fk.fk->constraint_name.str == fk.foreign_id.str)
         {
-          if (!fk.foreign_key)
-          {
-            my_error(ER_FK_NO_INDEX_CHILD, MYF(0), fk.foreign_id.str,
-                    fk.foreign_table.str);
-            return true;
-          }
+          /* foreign_idx was set by mysql_prepare_create_table() */
+          DBUG_ASSERT(fk.foreign_idx);
           // FIXME: check referenced index, remove dict_foreign_find_index() for
           // referenced table.
-          if (!fk.find_referenced_key(ref_share))
+          if (!fk.find_referenced_idx(ref_share))
           {
             my_error(ER_FK_NO_INDEX_PARENT, MYF(0), fk.foreign_id.str,
-                    fk.referenced_table.str);
+                     fk.referenced_table.str);
             return true;
           }
           break;

@@ -8239,7 +8239,7 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
 
       if (ref_share)
       {
-        if (KEY *k= fk.find_referenced_key(ref_share))
+        if (KEY *k= fk.find_referenced_idx(ref_share))
           ref_key_name= k->name;
         else
         {

@@ -3297,7 +3297,9 @@ innobase_get_foreign_key_info(
 				/* Check whether there exist such
 				index in the the index create clause */
 				if (!referenced_index) {
+					/* FIXME: remove in MDEV-21052 */
 					my_error(ER_FK_NO_INDEX_PARENT, MYF(0),
+						 fk_key.foreign_table.str,
 						 fk_key.foreign_id.str,
 						 fk_key.referenced_table.str);
 					goto err_exit_unlock;

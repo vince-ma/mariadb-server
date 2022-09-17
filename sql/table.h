@@ -1926,13 +1926,13 @@ public:
   /*
     Note: to find referenced_key use find_referenced_key()
   */
-  KEY *foreign_key;
+  KEY *foreign_idx;
 
 public:
   FK_info() :
     update_method(FK_OPTION_UNDEF),
     delete_method(FK_OPTION_UNDEF),
-    foreign_key(NULL)
+    foreign_idx(NULL)
   {}
   Lex_cstring ref_db() const
   {
@@ -1984,7 +1984,8 @@ public:
 
   bool get_referenced_share(THD *thd, Share_acquire *sa) const;
   bool get_referenced_share(THD *thd, Share_map *ref_shares) const;
-  KEY * find_referenced_key(TABLE_SHARE *ref_share) const;
+  KEY * find_referenced_idx(TABLE_SHARE *ref_share) const;
+  KEY * find_idx(KEY *key_info, uint keys, bool foreign_idx);
 };
 
 typedef class FK_info FOREIGN_KEY_INFO;

@@ -292,6 +292,7 @@ typedef struct st_copy_info {
 } COPY_INFO;
 
 
+// FIXME: move mbd:: utility to separate commit
 namespace mbd
 {
 /* Convert STL exceptions to my_error() */

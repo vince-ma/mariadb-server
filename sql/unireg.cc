@@ -1257,7 +1257,7 @@ ulonglong Foreign_key_io::fk_size(FK_info &fk)
   store_size+= string_size(fk.referenced_table);
   store_size+= net_length_size(fk.update_method);
   store_size+= net_length_size(fk.delete_method);
-  store_size+= net_length_size(fk.foreign_key - key_info);
+  store_size+= net_length_size(fk.foreign_idx - key_info);
   store_size+= net_length_size(fk.foreign_fields.elements);
   DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
   List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
@@ -1290,7 +1290,7 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
   pos= store_string(pos, fk.referenced_table);
   pos= store_length(pos, fk.update_method);
   pos= store_length(pos, fk.delete_method);
-  pos= store_length(pos, fk.foreign_key - key_info);
+  pos= store_length(pos, fk.foreign_idx - key_info);
   pos= store_length(pos, fk.foreign_fields.elements);
   DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
   List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
@@ -1395,6 +1395,7 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
                         "Foreign_key_io max supported version is %d", fk_io_version);
     return true;
   }
+
   for (uint i= 0; i < fk_count; ++i)
   {
     FK_info *dst= new (&s->mem_root) FK_info();
@@ -1420,11 +1421,15 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
       return true;
     if (read_length(key_num, p))
       return true;
+    /*
+      For foreign keys we must have at least one index. Multiple foreign keys
+      can use one index.
+    */
     DBUG_ASSERT(s->keys);
     // TODO: put any warnings or debug messages on what was failed.
     if (key_num >= s->keys)
       return true;
-    dst->foreign_key= s->key_info + key_num;
+    dst->foreign_idx= s->key_info + key_num;
     if (update_method > FK_OPTION_SET_DEFAULT || delete_method > FK_OPTION_SET_DEFAULT)
       return true;
     dst->update_method= (enum_fk_option) update_method;

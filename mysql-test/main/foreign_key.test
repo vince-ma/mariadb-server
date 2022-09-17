@@ -347,6 +347,23 @@ alter table t2 drop id;
 alter table t2 drop foreign key fk;
 drop tables t1, t2;
 
+--echo # Check drop index
+create or replace table t1 (id int primary key, a int) engine innodb;
+create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id)) engine innodb;
+--error ER_DROP_INDEX_FK
+drop index fk on t2;
+# FIXME: must be better error code (f.ex. ER_DROP_INDEX_RK)
+--error ER_ERROR_ON_RENAME
+drop index `primary` on t1;
+# FIXME: drop index before FK
+# FIXME: check multiple foreign keys having one index
+# FIXME: check multiple foreign keys referencing one index?
+# FIXME: check drop index at FK but created new one good index
+# FIXME: check drop index and drop FK
+# FIXME: check all the above without check_foreign
+# FIXME: test when qsort returns different order (see my_qsort() in mysql_prepare_create_table())
+drop tables t2, t1;
+
 --echo # Check self-references
 create or replace table t1 (id int primary key, id2 int references t1 (id));
 check tables t1;

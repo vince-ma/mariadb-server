@@ -9992,23 +9992,24 @@ FK_info::get_referenced_share(THD *thd, Share_map *ref_shares) const
 
   @param ref_share  Referenced table share
 
-  @return KEY which FK_info is referring to or NULL
+  @return KEY which FK_info is referring to or NULL if not found.
 */
-KEY * FK_info::find_referenced_key(TABLE_SHARE *ref_share) const
+
+KEY * FK_info::find_referenced_idx(TABLE_SHARE *ref_share) const
 {
   uint i; // FIXME: remove i?
   KEY *key;
   const Type_handler *fk_type;
 
   DBUG_ASSERT(foreign_fields.elements == referenced_fields.elements);
-  DBUG_ASSERT(foreign_key->user_defined_key_parts >= foreign_fields.elements);
+  DBUG_ASSERT(foreign_idx->user_defined_key_parts >= foreign_fields.elements);
 
   for (i= 0, key= ref_share->key_info; i < ref_share->keys; i++, key++)
   {
     if (key->user_defined_key_parts < referenced_fields.elements)
       continue;
     KEY_PART_INFO *rkp= key->key_part;
-    KEY_PART_INFO *fkp= foreign_key->key_part;
+    KEY_PART_INFO *fkp= foreign_idx->key_part;
     bool found= true;
     for (const Lex_cstring &rf: referenced_fields)
     {
@@ -10019,9 +10020,9 @@ KEY * FK_info::find_referenced_key(TABLE_SHARE *ref_share) const
         break;
       }
 
+      /* field is Create_field */
       if (fkp->key_part_flag & HA_CREATE_TABLE)
       {
-        /* We are under CREATE TABLE */
         Create_field *field= (Create_field *) fkp->field;
         fk_type= field->type_handler();
       }
@@ -10043,6 +10044,48 @@ KEY * FK_info::find_referenced_key(TABLE_SHARE *ref_share) const
       continue; /* not found */
     return key;
   }
+  return NULL;
+}
+
+
+/**
+  @brief Find KEY corresponding to foreign_fields or referenced_fields of
+         FK_info. Used to check DROP INDEX and for updating foreign_idx.
+
+  @param key_info     KEY array
+  @param keys         KEY array length
+  @param foreign_idx  What to compare: foreign_fields or referenced_fields
+
+  @return KEY which FK_info is referring to or NULL if not found.
+*/
+
+KEY * FK_info::find_idx(KEY *key_info, uint keys, bool foreign_idx)
+{
+  uint i;
+  KEY *key;
+  List<Lex_cstring> &fields= foreign_idx ? foreign_fields : referenced_fields;
+  for (i= 0, key= key_info; i < keys; i++, key++)
+  {
+    if (key->user_defined_key_parts < fields.elements)
+      continue;
+    KEY_PART_INFO *kp= key->key_part;
+    bool found= true;
+    for (const Lex_cstring &f: fields)
+    {
+      /* field is Create_field */
+      DBUG_ASSERT(kp->key_part_flag & HA_CREATE_TABLE);
+      Create_field *cf= (Create_field *) kp->field;
+      if (0 != cmp_ident(cf->field_name, f))
+      {
+        found= false;
+        break;
+      }
+            kp++;
+    }
+    if (found)
+      return key;
+  }
+
   return NULL;
 }
 
