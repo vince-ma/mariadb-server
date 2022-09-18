@@ -34,18 +34,17 @@ create table t2(a int, b int, foreign key (a) references t1(a), foreign key (b) 
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Create  table `test`.`t2` with foreign key `fk_t2_2` constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
+Warning	150	Create  table `test`.`t2` with foreign key `t2_ibfk_2` constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
 Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t2`
 drop table t1;
 create table t1(a int not null primary key, b int) engine=innodb;
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a),
 constraint a foreign key a (a) references t1(b)) engine=innodb;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42000: Duplicate key name 'a'
 show warnings;
 Level	Code	Message
-Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t2`
+Error	1061	Duplicate key name 'a'
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a)) engine=innodb;
 alter table t2 add constraint b foreign key (b) references t2(b);
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
@@ -115,7 +114,7 @@ create table t2(a int not null, foreign key(a) references t1(f1) on delete set n
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Create  table `test`.`t2` with foreign key `fk_t2` constraint failed. You have defined a SET NULL condition but column 'a' is defined as NOT NULL.
+Warning	150	Create  table `test`.`t2` with foreign key `t2_ibfk_1` constraint failed. You have defined a SET NULL condition but column 'a' is defined as NOT NULL.
 Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t2`
 drop table t1;
@@ -124,8 +123,5 @@ create table t2(a char(20), key(a), foreign key(a) references t1(f1)) engine=inn
 ERROR 42000: Incorrect foreign key definition for 'a': foreign-referenced fields type mismatch
 show warnings;
 Level	Code	Message
-Warning	150	Create  table `test`.`t2` with foreign key (a) constraint failed. Field type or character set for column 'a' does not match referenced column 'f1'.
-Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t2`
 Error	1239	Incorrect foreign key definition for 'a': foreign-referenced fields type mismatch
 drop table t1;

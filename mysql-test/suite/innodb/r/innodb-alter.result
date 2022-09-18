@@ -252,7 +252,7 @@ ID	FOR_COL_NAME	REF_COL_NAME	POS
 test/t1c2	c2	c3	0
 test/t1c3	c3	c2	0
 ALTER TABLE t1 DROP INDEX c2;
-ERROR HY000: Cannot drop index 'c2': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't1c.t1c2' in the referenced table 't1'
 ALTER TABLE t1 DROP INDEX c4;
 ERROR 42000: Can't DROP INDEX `c4`; check that it exists
 ALTER TABLE t1c DROP FOREIGN KEY c2;
@@ -262,7 +262,7 @@ ERROR 42000: Can't DROP FOREIGN KEY `c2`; check that it exists
 ALTER TABLE t1c DROP FOREIGN KEY t1c2, DROP FOREIGN KEY c2, DROP INDEX c2;
 ERROR 42000: Can't DROP FOREIGN KEY `c2`; check that it exists
 ALTER TABLE t1c DROP INDEX c2;
-ERROR HY000: Cannot drop index 'c2': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't1c2' in the foreign table 't1c'
 ALTER TABLE t1c DROP FOREIGN KEY ẗ1C2;
 ERROR 42000: Can't DROP FOREIGN KEY `ẗ1C2`; check that it exists
 SHOW CREATE TABLE t1c;
@@ -311,9 +311,9 @@ test/t1c2	c2	c3	0
 test/t1c3	c3	c2	0
 CREATE TABLE t1p (c1 INT PRIMARY KEY, c2 INT, INDEX(c2)) ENGINE=InnoDB;
 ALTER TABLE t1c DROP INDEX C2, DROP INDEX C3;
-ERROR HY000: Cannot drop index 'c2': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't1c2' in the foreign table 't1c'
 ALTER TABLE t1c DROP INDEX C3;
-ERROR HY000: Cannot drop index 'c3': needed in a foreign key constraint
+ERROR HY000: Missing index for constraint 't1c3' in the foreign table 't1c'
 SET foreign_key_checks=0;
 ALTER TABLE t1c DROP INDEX C3;
 SET foreign_key_checks=1;
@@ -722,8 +722,8 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c2` int(11) NOT NULL,
-  KEY `fk_t2` (`c2`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`c2`) REFERENCES `t1` (`c1`)
+  KEY `c2` (`c2`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c2`) REFERENCES `t1` (`c1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE t1 CHANGE COLUMN c1 C1 INT;
 ALTER TABLE t2 CHANGE COLUMN c2 C2 INT;
@@ -737,8 +737,8 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `C2` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`C2`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`C2`) REFERENCES `t1` (`C1`)
+  KEY `c2` (`C2`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`C2`) REFERENCES `t1` (`C1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE t1 CHANGE COLUMN C1 c5 INT;
 ALTER TABLE t2 CHANGE COLUMN C2 c6 INT;
@@ -752,8 +752,8 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c6` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`c6`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`c6`) REFERENCES `t1` (`c5`)
+  KEY `c2` (`c6`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c6`) REFERENCES `t1` (`c5`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
 INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
@@ -838,31 +838,31 @@ t2	CREATE TABLE `t2` (
   `BB` int(11) DEFAULT NULL,
   `CC` int(11) DEFAULT NULL,
   `DD` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`AA`),
-  KEY `fk_t2_2` (`BB`),
-  KEY `fk_t2_3` (`CC`),
-  KEY `fk_t2_4` (`DD`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`),
-  CONSTRAINT `fk_t2_2` FOREIGN KEY (`BB`) REFERENCES `t1` (`B`),
-  CONSTRAINT `fk_t2_3` FOREIGN KEY (`CC`) REFERENCES `t1` (`C`),
-  CONSTRAINT `fk_t2_4` FOREIGN KEY (`DD`) REFERENCES `t1` (`D`)
+  KEY `aa` (`AA`),
+  KEY `bb` (`BB`),
+  KEY `CC` (`CC`),
+  KEY `DD` (`DD`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`BB`) REFERENCES `t1` (`B`),
+  CONSTRAINT `t2_ibfk_3` FOREIGN KEY (`CC`) REFERENCES `t1` (`C`),
+  CONSTRAINT `t2_ibfk_4` FOREIGN KEY (`DD`) REFERENCES `t1` (`D`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DELETE FROM t1 WHERE a=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE A=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE b=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE B=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE c=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE C=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE d=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE D=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DROP TABLE t2, t1;
 # virtual columns case too
 CREATE TABLE t1 (a INT, b INT GENERATED ALWAYS AS (a) VIRTUAL) ENGINE = InnoDB;

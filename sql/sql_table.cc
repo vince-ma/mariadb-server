@@ -2788,7 +2788,7 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
   FK_list &referenced_keys= alter_ctx->referenced_keys;
   Lex_cstring   key_name;
   Lex_ident_set key_names;
-  Lex_ident_set dup_check;
+  Lex_ident_set fkey_names;
   Create_field	*sql_field,*dup_field;
   uint		field,null_fields,max_key_length;
   ulong		record_offset= 0;
@@ -3091,7 +3091,19 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
       }
     }
     if (!key->ignore)
+    {
       key_parts+=key->columns.elements;
+      if (key->name.str)
+      {
+        if (key_names.find(key->name) != key_names.end())
+        {
+          my_error(ER_DUP_KEYNAME, MYF(0), key->name.str);
+          DBUG_RETURN(true);
+        }
+        if (!key_names.insert(key->name))
+          DBUG_RETURN(TRUE);
+      }
+    }
     else
       (*key_count)--;
     if (key->name.str && !tmp_table && (key->type != Key::PRIMARY) &&
@@ -3101,7 +3113,7 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
       my_error(ER_WRONG_NAME_FOR_INDEX, MYF(0), key->name.str);
       DBUG_RETURN(TRUE);
     }
-    if (key->type == Key::PRIMARY && key->name.str &&
+    else if (key->type == Key::PRIMARY && key->name.str &&
         my_strcasecmp(system_charset_info, key->name.str, primary_key_name.str) != 0)
     {
       bool sav_abort_on_warning= thd->abort_on_warning;
@@ -3111,6 +3123,22 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
                           "Name '%-.100s' ignored for PRIMARY key.",
                           key->name.str);
       thd->abort_on_warning= sav_abort_on_warning;
+    }
+    else if (key->foreign)
+    {
+      Foreign_key *fk_key= (Foreign_key*) key;
+      key_name= fk_key->constraint_name.str ? fk_key->constraint_name :
+                                              key->name;
+      if (key_name.str)
+      {
+        if (fkey_names.find(key_name) != fkey_names.end())
+        {
+          my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", key_name.str);
+          DBUG_RETURN(true);
+        }
+        if (!fkey_names.insert(key_name))
+          DBUG_RETURN(TRUE);
+      }
     }
   }
 
@@ -3149,7 +3177,8 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
           fk->assign(fkey, new_name);
           if (!fk->foreign_id.str)
           {
-            fk->foreign_id= make_unique_key_name(thd, new_name.name, key_names, true);
+            fk->foreign_id= make_unique_key_name(thd, new_name.name, fkey_names,
+                                                 true);
             fkey.constraint_name= fk->foreign_id;
           }
           ignore_fixup.insert({key->ignore_reason, fk});
@@ -3164,7 +3193,7 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
           my_error(ER_OUT_OF_RESOURCES, MYF(0));
           DBUG_RETURN(true);
         }
-        if (!key_names.insert(fk->foreign_id))
+        if (!fkey_names.insert(fk->foreign_id))
           DBUG_RETURN(true);				// Out of memory
       }
       continue;
@@ -3187,7 +3216,7 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
     }
     else if (!(key_name= key->name, key_name.str))
     {
-      auto field_name= key->columns.elem(0)->field_name;
+      Lex_cstring field_name= key->columns.elem(0)->field_name;
       it.rewind();
       while ((sql_field=it++) &&
              lex_string_cmp(system_charset_info,
@@ -3195,21 +3224,20 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
                             &sql_field->field_name));
       if (sql_field)
         field_name= sql_field->field_name;
-      key_name=make_unique_key_name(thd, field_name,
-                                    key_names, false);
+      key_name= make_unique_key_name(thd, field_name, key_names, false);
+      if (!key_names.insert(key_name))
+        DBUG_RETURN(TRUE);
       if (key->foreign)
       {
         Foreign_key &fkey= static_cast<Foreign_key &>(*key);
         if (!fkey.constraint_name.str)
         {
-          fkey.constraint_name= make_unique_key_name(thd, table_name.name, key_names, true);
+          fkey.constraint_name= make_unique_key_name(thd, table_name.name,
+                                                     fkey_names, true);
+          if (!fkey_names.insert(fkey.constraint_name))
+            DBUG_RETURN(TRUE);
         }
       }
-    }
-    if (dup_check.find(key_name) != dup_check.end())
-    {
-      my_error(ER_DUP_KEYNAME, MYF(0), key_name.str);
-      DBUG_RETURN(true);
     }
     if (key->foreign)
     {
@@ -3231,10 +3259,6 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
       }
     }
     key_info->name= key_name;
-    if (!key_names.insert(key_name))
-      DBUG_RETURN(TRUE);
-    if (!dup_check.insert(key_name))
-      DBUG_RETURN(TRUE);
     key->name= key_info->name; // FIXME: need this?
 
     int parts_added= append_system_key_parts(thd, create_info, key);
@@ -3741,21 +3765,22 @@ without_overlaps_err:
 
   for (FK_info &fk: foreign_keys)
     if (!fk.foreign_idx)
-      if (!(fk.foreign_idx= fk.find_idx(*key_info_buffer, *key_count, true)))
+      if (!(fk.foreign_idx= fk.find_idx(*key_info_buffer, *key_count, true)) &&
+          thd->variables.check_foreign())
       {
         my_error(ER_FK_NO_INDEX_CHILD, MYF(0), fk.foreign_id.str,
                  fk.foreign_table.str);
         DBUG_RETURN(true);
       }
 
-  for (FK_info &rk: referenced_keys)
-    if (!rk.find_idx(*key_info_buffer, *key_count, false))
-    {
-      // FIXME: ER_DROP_INDEX_FK is deprecated
-      my_error(ER_FK_NO_INDEX_PARENT, MYF(0), rk.foreign_table.str,
-               rk.foreign_id.str, rk.referenced_table.str);
-      DBUG_RETURN(true);
-    }
+  if (thd->variables.check_foreign())
+    for (FK_info &rk: referenced_keys)
+      if (!rk.find_idx(*key_info_buffer, *key_count, false))
+      {
+        my_error(ER_FK_NO_INDEX_PARENT, MYF(0), rk.foreign_table.str,
+                rk.foreign_id.str, rk.referenced_table.str);
+        DBUG_RETURN(true);
+      }
 
   if (!unique_key && !primary_key && !create_info->sequence &&
       (file->ha_table_flags() & HA_REQUIRE_PRIMARY_KEY))
@@ -3791,7 +3816,8 @@ without_overlaps_err:
     */
     std::multimap<Lex_cstring, FK_info *, Lex_ident_lt> fk_fixup;
     for (FK_info &fk: foreign_keys)
-      fk_fixup.insert({fk.foreign_idx->name, &fk});
+      if (fk.foreign_idx)
+        fk_fixup.insert({fk.foreign_idx->name, &fk});
 
     /*
       Sort keys in optimized order.
@@ -9609,6 +9635,8 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         append_identifier(thd, &buff, db);
         buff.append('.');
         append_identifier(thd, &buff, tbl);
+        // FIXME: ER_FK_COLUMN_CANNOT_DROP_CHILD depracated?
+        DBUG_ASSERT(0);
         my_error(ER_FK_COLUMN_CANNOT_DROP_CHILD, MYF(0), bad_column_name,
                 f_key->foreign_id.str, buff.c_ptr());
         DBUG_RETURN(true);
@@ -12958,7 +12986,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
       }
     } // for (const FK_info &fk: foreign_keys)
 
-    if (ref_share->fk_write_shadow_frm())
+    if (ref_share->fk_write_shadow_frm(thd))
       return true;
   } // for (ref_tables)
 
@@ -13014,6 +13042,7 @@ bool fk_prepare_create_table(THD *thd, Alter_info *alter_info,
       }
       if (!cf)
       {
+        /* NB: this may or may not be masked by ER_FK_NO_INDEX_CHILD */
         my_error(ER_WRONG_FK_DEF, MYF(0), ff.str, "foreign field not found");
         return true;
       }
@@ -13025,6 +13054,7 @@ bool fk_prepare_create_table(THD *thd, Alter_info *alter_info,
         {
           if (!check_foreign)
             continue;
+          /* NB: this may or may not be masked by ER_FK_NO_INDEX_PARENT */
           my_error(ER_WRONG_FK_DEF, MYF(0), rf.str,
                    "referenced field not found");
           return true;
@@ -13100,8 +13130,8 @@ bool fk_prepare_create_table(THD *thd, Alter_info *alter_info,
           // referenced table.
           if (!fk.find_referenced_idx(ref_share))
           {
-            my_error(ER_FK_NO_INDEX_PARENT, MYF(0), fk.foreign_id.str,
-                     fk.referenced_table.str);
+            my_error(ER_FK_NO_INDEX_PARENT, MYF(0), fk.foreign_table.str,
+                     fk.foreign_id.str, fk.referenced_table.str);
             return true;
           }
           break;
@@ -13491,7 +13521,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
   /* Update EXTRA2_FOREIGN_KEY_INFO section in FRM files. */
   for (TABLE_SHARE *s: shares_to_write)
   {
-    if (s->fk_write_shadow_frm())
+    if (s->fk_write_shadow_frm(thd))
       return true;
   }
 
@@ -13650,7 +13680,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, mbd::vector<FK_ddl_backup> &sha
         ref_it.remove();
       }
     }
-    int err= ref.sa.share->fk_write_shadow_frm();
+    int err= ref.sa.share->fk_write_shadow_frm(thd);
     if (err)
     {
       if (err > 2)
@@ -13736,7 +13766,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
       goto mem_error;
   }
 
-  if (share->fk_write_shadow_frm())
+  if (share->fk_write_shadow_frm(thd))
     return true;
 
   // NB: share is closed before rename, we can't store it into fk_rename_backup
@@ -13804,7 +13834,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
           rk.foreign_table.strdup(&ref_share->mem_root, *new_table_name))
         goto mem_error;
     }
-    if (ref_share->fk_write_shadow_frm())
+    if (ref_share->fk_write_shadow_frm(thd))
       return true;
   }
 

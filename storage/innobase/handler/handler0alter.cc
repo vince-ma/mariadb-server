@@ -4461,6 +4461,8 @@ innobase_check_foreigns_low(
 				strlen(foreign->foreign_table_name),
 				NULL);
 			*buf_end = '\0';
+			// FIXME: ER_FK_COLUMN_CANNOT_DROP_CHILD depracated?
+			ut_ad(0);
 			my_error(ER_FK_COLUMN_CANNOT_DROP_CHILD,
 				 MYF(0), col_name, foreign->id,
 				 display_name);
@@ -8211,6 +8213,8 @@ check_if_can_drop_indexes:
 					row_mysql_unlock_data_dictionary(
 						m_prebuilt->trx);
 					m_prebuilt->trx->error_info = index;
+					// FIXME: ER_DROP_INDEX_FK is deprecated
+					ut_ad(0);
 					print_error(HA_ERR_DROP_INDEX_FK,
 						MYF(0));
 					goto err_exit;
@@ -8225,6 +8229,8 @@ check_if_can_drop_indexes:
 					indexed_table, col_names,
 					m_prebuilt->trx, drop_fk, n_drop_fk)) {
 				row_mysql_unlock_data_dictionary(m_prebuilt->trx);
+				// FIXME: ER_DROP_INDEX_FK is deprecated
+				ut_ad(0);
 				print_error(HA_ERR_DROP_INDEX_FK, MYF(0));
 				goto err_exit;
 			}

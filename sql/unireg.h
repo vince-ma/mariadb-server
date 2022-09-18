@@ -203,6 +203,14 @@ private:
     out= (uint32_t) num;
     return false;
   }
+  static bool read_ll(longlong &out, Pos &p)
+  {
+    longlong num= (longlong) safe_net_field_length_ll(&p.pos, p.end - p.pos);
+    if (!p.pos || num > INT_MAX32 || num < INT_MIN32)
+      return true;
+    out= (int32_t) num;
+    return false;
+  }
   static bool read_string(Lex_cstring &to, MEM_ROOT *mem_root, Pos &p)
   {
     if (read_length(to.length, p) || p.pos + to.length > p.end)
@@ -229,6 +237,10 @@ private:
   {
     return net_store_length(pos, length);
   }
+  static uchar *store_ll(uchar *pos, longlong data)
+  {
+    return net_store_length(pos, (ulonglong) data);
+  }
   static uchar *store_string(uchar *pos, const LEX_CSTRING &str, bool nullable= false)
   {
     DBUG_ASSERT(nullable || str.length);
@@ -241,13 +253,17 @@ private:
   {
     return net_length_size(str.length) + str.length;
   }
+  static ulonglong ll_size(longlong num)
+  {
+    return net_length_size((ulonglong) num);
+  }
 public:
   Foreign_key_io(KEY *key_info) :
     share{NULL}, key_info{key_info} {}
   ulonglong fk_size(FK_info &fk);
   ulonglong hint_size(FK_info &rk);
   void store_fk(FK_info &fk, uchar *&pos);
-  bool store(FK_list &foreign_keys, FK_list &referenced_keys);
+  bool store(THD *thd, FK_list &foreign_keys, FK_list &referenced_keys);
 };
 
 #endif

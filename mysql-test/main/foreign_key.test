@@ -340,20 +340,20 @@ drop table t2, t1;
 --echo # Check drop column, drop foreign key
 create or replace table t1 (id int primary key, a int);
 create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id));
---error ER_FK_COLUMN_CANNOT_DROP_CHILD
+--error ER_FK_NO_INDEX_PARENT
 alter table t1 drop id;
---error ER_WRONG_FK_DEF
+--error ER_FK_NO_INDEX_CHILD
 alter table t2 drop id;
 alter table t2 drop foreign key fk;
 drop tables t1, t2;
 
 --echo # Check drop index
-create or replace table t1 (id int primary key, a int) engine innodb;
+create or replace table t1 (id int primary key, a int unique key) engine innodb;
 create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id)) engine innodb;
---error ER_DROP_INDEX_FK
+--error ER_FK_NO_INDEX_CHILD
 drop index fk on t2;
 # FIXME: must be better error code (f.ex. ER_DROP_INDEX_RK)
---error ER_ERROR_ON_RENAME
+--error ER_FK_NO_INDEX_PARENT
 drop index `primary` on t1;
 # FIXME: drop index before FK
 # FIXME: check multiple foreign keys having one index
@@ -389,7 +389,7 @@ check tables t1;
 flush tables t1;
 check tables t1;
 show create table t1;
-alter table t1 drop foreign key fk_t1;
+alter table t1 drop foreign key t1_ibfk_1;
 check tables t1;
 flush tables t1;
 check tables t1;
@@ -409,10 +409,10 @@ set default_storage_engine= default;
 --echo # Prohibit wrong references and fix field name case
 --error ER_WRONG_FK_DEF
 create table t1 (A int unique key, x timestamp references t1(a));
---error ER_WRONG_FK_DEF
+--error ER_FK_NO_INDEX_PARENT
 create table t1 (A int unique key, x int references t1(b));
 create table t1 (A int unique key, x int references t1(a));
---error ER_WRONG_FK_DEF
+--error ER_FK_NO_INDEX_PARENT
 alter table t1 add foreign key(x) references t1(b);
 alter table t1 add foreign key(x) references t1(a);
 

@@ -6,7 +6,7 @@ create table t1 (f1 int primary key) engine=InnoDB;
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1),
 constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c1'
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
@@ -136,7 +136,7 @@ INSERT INTO t2 VALUES (1);
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
-t2_ibfk_1
+PRIMARY
 #
 # MDEV-28317 Assertion failure on rollback of FOREIGN KEY operation
 #
@@ -170,14 +170,14 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
-t2_ibfk_1
+PRIMARY
 SELECT * FROM t1;
 c1
 1
 SELECT unique_constraint_name FROM information_schema.referential_constraints
 WHERE table_name = 't2';
 unique_constraint_name
-t2_ibfk_1
+PRIMARY
 DROP TABLE t2;
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=0;
@@ -830,9 +830,9 @@ SET FOREIGN_KEY_CHECKS= 1;
 Parsing foreign keys 1...
 ERROR 42S02: Table 'test.t1' doesn't exist
 Parsing foreign keys 2...
-ERROR 42000: Incorrect foreign key definition for 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx': referenced field not found
+ERROR HY000: Missing index for constraint 't1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0' in the referenced table 't1'
 Parsing foreign keys 3...
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Missing index for constraint 't1.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0' in the referenced table 't1'
 Parsing foreign keys 4...
 #
 # MDEV-27583 InnoDB uses different constants for FK cascade
@@ -934,7 +934,7 @@ set default_storage_engine= default;
 SET FOREIGN_KEY_CHECKS=1;
 CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Missing index for constraint 't1.t1_ibfk_1' in the referenced table 't1'
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 DROP TABLE t1;
 #
@@ -964,7 +964,7 @@ alter table t2 add foreign key(a) references t1(a, b);
 ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
 create or replace table t1(a tinyint primary key) engine innodb;
 alter table t2 add foreign key(a) references t1;
-ERROR HY000: Failed to add the foreign key constraint. Missing index for constraint 't2_ibfk_1' in the referenced table 't1'
+ERROR HY000: Missing index for constraint 't2.t2_ibfk_1' in the referenced table 't1'
 create or replace table t1(b int primary key) engine innodb;
 alter table t2 add foreign key(a) references t1;
 ERROR 42000: Incorrect foreign key definition for 'a': referenced field not found

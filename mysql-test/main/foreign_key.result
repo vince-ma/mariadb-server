@@ -18,16 +18,16 @@ foreign key (a,b) references t3 (c,d) on update set null);
 create index a on t1 (a);
 create unique index b on t1 (a,b);
 drop tables t2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_t1)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (t1_ibfk_1)
 drop tables t3;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_t1_2)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (t1_ibfk_2)
 drop tables t1, t2, t3;
 create table t1 (id int primary key) engine = innodb;
 create table t2 (id int PRIMARY KEY, FOREIGN KEY (id) REFERENCES t1(id)) engine=innodb;
 insert into t1 values (1), (2), (3), (4), (5), (6);
 insert into t2 values (3), (5);
 delete from t1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
 select * from t1;
 id
 1
@@ -38,8 +38,8 @@ id
 6
 delete ignore from t1;
 Warnings:
-Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
-Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`))
 select row_count();
 row_count()
 -1
@@ -231,10 +231,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
   `id2` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`id`),
-  KEY `fk_t2_2` (`id2`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`xid`),
-  CONSTRAINT `fk_t2_2` FOREIGN KEY (`id2`) REFERENCES `t1` (`xid`)
+  KEY `id` (`id`),
+  KEY `id2` (`id2`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`xid`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`id2`) REFERENCES `t1` (`xid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t1;
 xid
@@ -253,10 +253,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
   `id2` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`id`),
-  KEY `fk_t2_2` (`id2`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`yid`),
-  CONSTRAINT `fk_t2_2` FOREIGN KEY (`id2`) REFERENCES `t1` (`yid`)
+  KEY `id` (`id`),
+  KEY `id2` (`id2`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`yid`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`id2`) REFERENCES `t1` (`yid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t1;
 yid
@@ -368,8 +368,8 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`id`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `xt1` (`id`)
+  KEY `id` (`id`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `xt1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from xt1;
 id
@@ -391,8 +391,8 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`id`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `yt1` (`id`)
+  KEY `id` (`id`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `yt1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from yt1;
 id
@@ -414,8 +414,8 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`id`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
+  KEY `id` (`id`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t1;
 id
@@ -441,7 +441,7 @@ id
 select * from ch1;
 id
 drop table t1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_ch1)
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (ch1_ibfk_1)
 drop tables ch1, t1;
 # Check drop database
 create or replace table t1 (id int primary key);
@@ -485,11 +485,21 @@ drop table t2, t1;
 create or replace table t1 (id int primary key, a int);
 create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id));
 alter table t1 drop id;
-ERROR HY000: Cannot drop column 'id': needed in a foreign key constraint 'fk' of table `test`.`t2`
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
 alter table t2 drop id;
-ERROR 42000: Incorrect foreign key definition for 'id': foreign field not found
+ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
 alter table t2 drop foreign key fk;
+Warnings:
+Warning	1088	failed to load FOREIGN KEY constraints
 drop tables t1, t2;
+# Check drop index
+create or replace table t1 (id int primary key, a int unique key) engine innodb;
+create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id)) engine innodb;
+drop index fk on t2;
+ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
+drop index `primary` on t1;
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+drop tables t2, t1;
 # Check self-references
 create or replace table t1 (id int primary key, id2 int references t1 (id));
 check tables t1;
@@ -507,11 +517,11 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `id2` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `fk_t1` (`id2`),
-  CONSTRAINT `fk_t1` FOREIGN KEY (`id2`) REFERENCES `t1` (`id`)
+  KEY `id2` (`id2`),
+  CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`id2`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 insert into t1 values (1, 2);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `fk_t1` FOREIGN KEY (`id2`) REFERENCES `t1` (`id`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`id2`) REFERENCES `t1` (`id`))
 insert into t1 values (1, 1);
 alter table t1 change id2 id3 int;
 check tables t1;
@@ -529,8 +539,8 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `id3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `fk_t1` (`id3`),
-  CONSTRAINT `fk_t1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`)
+  KEY `id2` (`id3`),
+  CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 alter table t1 add foreign key (id3) references t1 (id);
 check tables t1;
@@ -548,9 +558,9 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `id3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `fk_t1_2` (`id3`),
-  CONSTRAINT `fk_t1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`),
-  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`)
+  KEY `id3` (`id3`),
+  CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`),
+  CONSTRAINT `t1_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 alter table t1 change id id4 int;
 show create table t1;
@@ -559,9 +569,9 @@ t1	CREATE TABLE `t1` (
   `id4` int(11) NOT NULL,
   `id3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id4`),
-  KEY `fk_t1_2` (`id3`),
-  CONSTRAINT `fk_t1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`),
-  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+  KEY `id3` (`id3`),
+  CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`),
+  CONSTRAINT `t1_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 check tables t1;
 Table	Op	Msg_type	Msg_text
@@ -578,11 +588,11 @@ t1	CREATE TABLE `t1` (
   `id4` int(11) NOT NULL,
   `id3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id4`),
-  KEY `fk_t1_2` (`id3`),
-  CONSTRAINT `fk_t1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`),
-  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+  KEY `id3` (`id3`),
+  CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`),
+  CONSTRAINT `t1_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-alter table t1 drop foreign key fk_t1;
+alter table t1 drop foreign key t1_ibfk_1;
 check tables t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	Note	Found 1 self-references
@@ -598,8 +608,8 @@ t1	CREATE TABLE `t1` (
   `id4` int(11) NOT NULL,
   `id3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id4`),
-  KEY `fk_t1_2` (`id3`),
-  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
+  KEY `id3` (`id3`),
+  CONSTRAINT `t1_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t1` (`id4`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 rename table t1 to t2;
 check tables t2;
@@ -617,21 +627,21 @@ t2	CREATE TABLE `t2` (
   `id4` int(11) NOT NULL,
   `id3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id4`),
-  KEY `fk_t1_2` (`id3`),
-  CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`)
+  KEY `id3` (`id3`),
+  CONSTRAINT `t1_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 delete from t2;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `fk_t1_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`))
 drop table t2;
 set default_storage_engine= default;
 # Prohibit wrong references and fix field name case
 create table t1 (A int unique key, x timestamp references t1(a));
 ERROR 42000: Incorrect foreign key definition for 'x': foreign-referenced fields type mismatch
 create table t1 (A int unique key, x int references t1(b));
-ERROR 42000: Incorrect foreign key definition for 'b': referenced field not found
+ERROR HY000: Missing index for constraint 't1.t1_ibfk_1' in the referenced table 't1'
 create table t1 (A int unique key, x int references t1(a));
 alter table t1 add foreign key(x) references t1(b);
-ERROR 42000: Incorrect foreign key definition for 'b': referenced field not found
+ERROR HY000: Missing index for constraint 't1.t1_ibfk_2' in the referenced table 't1'
 alter table t1 add foreign key(x) references t1(a);
 show create table t1;
 Table	Create Table
@@ -639,9 +649,9 @@ t1	CREATE TABLE `t1` (
   `A` int(11) DEFAULT NULL,
   `x` int(11) DEFAULT NULL,
   UNIQUE KEY `A` (`A`),
-  KEY `fk_t1_2` (`x`),
-  CONSTRAINT `fk_t1` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
-  CONSTRAINT `fk_t1_2` FOREIGN KEY (`x`) REFERENCES `t1` (`A`)
+  KEY `x_2` (`x`),
+  CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
+  CONSTRAINT `t1_ibfk_2` FOREIGN KEY (`x`) REFERENCES `t1` (`A`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create table t2 (AA int, x int references t1(ax));
 ERROR 42000: Incorrect foreign key definition for 'ax': referenced field not found
@@ -656,10 +666,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `AA` int(11) DEFAULT NULL,
   `x` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`x`),
-  KEY `fk_t2_2` (`AA`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
-  CONSTRAINT `fk_t2_2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`)
+  KEY `x` (`x`),
+  KEY `AA` (`AA`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t2, t1;
 # Foreign keys and partitioning

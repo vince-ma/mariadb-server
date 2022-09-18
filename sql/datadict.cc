@@ -412,7 +412,7 @@ Extra2_info::write(uchar *frm_image, size_t frm_size)
 }
 
 
-int TABLE_SHARE::fk_write_shadow_frm()
+int TABLE_SHARE::fk_write_shadow_frm(THD *thd)
 {
   const uchar * frm_src;
   uchar * frm_dst;
@@ -468,7 +468,7 @@ frm_err:
   const size_t rest_size= frm_size - FRM_HEADER_SIZE - extra2.read_size;
   size_t forminfo_off= uint4korr(rest_src);
 
-  foreign_key_io.store(foreign_keys, referenced_keys);
+  foreign_key_io.store(thd, foreign_keys, referenced_keys);
   extra2.foreign_key_info= foreign_key_io.lex_custring();
   if (!extra2.foreign_key_info.length)
     extra2.foreign_key_info.str= NULL;

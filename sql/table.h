@@ -750,7 +750,7 @@ struct TABLE_SHARE
   {
     return !referenced_keys.is_empty();
   }
-  int fk_write_shadow_frm();
+  int fk_write_shadow_frm(THD *thd);
   bool fk_install_shadow_frm();
   void fk_drop_shadow_frm();
   bool fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from);

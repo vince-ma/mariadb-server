@@ -314,7 +314,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                     MYF(0), table.str);
     DBUG_RETURN(frm);
   }
-  if (foreign_key_io.store(foreign_keys, referenced_keys))
+  if (foreign_key_io.store(thd, foreign_keys, referenced_keys))
   {
     my_printf_error(ER_CANT_CREATE_TABLE,
                     "Cannot create table %`s: "
@@ -1257,7 +1257,14 @@ ulonglong Foreign_key_io::fk_size(FK_info &fk)
   store_size+= string_size(fk.referenced_table);
   store_size+= net_length_size(fk.update_method);
   store_size+= net_length_size(fk.delete_method);
-  store_size+= net_length_size(fk.foreign_idx - key_info);
+  if (fk.foreign_idx)
+  {
+    DBUG_ASSERT(fk.foreign_idx >= key_info);
+    DBUG_ASSERT(fk.foreign_idx - key_info < INT_MAX32);
+    store_size+= ll_size(fk.foreign_idx - key_info);
+  }
+  else
+    store_size+= ll_size(-1);
   store_size+= net_length_size(fk.foreign_fields.elements);
   DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
   List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
@@ -1290,7 +1297,10 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
   pos= store_string(pos, fk.referenced_table);
   pos= store_length(pos, fk.update_method);
   pos= store_length(pos, fk.delete_method);
-  pos= store_length(pos, fk.foreign_idx - key_info);
+  if (fk.foreign_idx)
+    pos= store_ll(pos, fk.foreign_idx - key_info);
+  else
+    pos= store_ll(pos, -1);
   pos= store_length(pos, fk.foreign_fields.elements);
   DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
   List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
@@ -1303,12 +1313,14 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
   DBUG_ASSERT(pos - old_pos == (long int)fk_size(fk));
 }
 
-bool Foreign_key_io::store(FK_list &foreign_keys, FK_list &referenced_keys)
+bool Foreign_key_io::store(THD *thd, FK_list &foreign_keys,
+                           FK_list &referenced_keys)
 {
   DBUG_EXECUTE_IF("fk_skip_store", return false;);
 
   ulonglong fk_count= 0;
   mbd::set<Table_name> hints;
+  mbd::set<Lex_cstring, Lex_ident_lt> ids;
   bool inserted;
 
   if (foreign_keys.is_empty() && referenced_keys.is_empty())
@@ -1319,6 +1331,13 @@ bool Foreign_key_io::store(FK_list &foreign_keys, FK_list &referenced_keys)
   {
     fk_count++;
     store_size+= fk_size(fk);
+    if (!ids.insert(fk.foreign_id, &inserted))
+      return true;
+    if (!inserted)
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_CANNOT_ADD_FOREIGN, "Duplicate constraint name");
+    }
   }
   store_size+= net_length_size(fk_count);
 
@@ -1373,7 +1392,7 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
   Pos p(image);
   size_t version, fk_count, rk_count, stored_rk_count, hint_count;
   Lex_cstring hint_db, hint_table;
-  size_t key_num;
+  longlong key_num;
 
   if (read_length(version, p))
   {
@@ -1419,17 +1438,13 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
       return true;
     if (read_length(delete_method, p))
       return true;
-    if (read_length(key_num, p))
+    if (read_ll(key_num, p))
       return true;
-    /*
-      For foreign keys we must have at least one index. Multiple foreign keys
-      can use one index.
-    */
-    DBUG_ASSERT(s->keys);
     // TODO: put any warnings or debug messages on what was failed.
     if (key_num >= s->keys)
       return true;
-    dst->foreign_idx= s->key_info + key_num;
+    if (key_num >= 0)
+      dst->foreign_idx= s->key_info + key_num;
     if (update_method > FK_OPTION_SET_DEFAULT || delete_method > FK_OPTION_SET_DEFAULT)
       return true;
     dst->update_method= (enum_fk_option) update_method;

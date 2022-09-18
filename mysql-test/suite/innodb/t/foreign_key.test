@@ -8,7 +8,7 @@
 --echo #
 
 create table t1 (f1 int primary key) engine=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1),
 constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
@@ -845,10 +845,10 @@ while ($i < $constr_count)
 --error ER_NO_SUCH_TABLE
 eval create table t0($fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 2...
---error ER_WRONG_FK_DEF
+--error ER_FK_NO_INDEX_PARENT
 eval create table t1($fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 3...
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 eval create table t1($fk_ref int, $fk_field int, $constrs) engine innodb;
 --echo Parsing foreign keys 4...
 eval create table t1($fk_ref int primary key, $fk_field int, $constrs) engine innodb;
@@ -957,7 +957,7 @@ set default_storage_engine= default;
 --echo #
 SET FOREIGN_KEY_CHECKS=1;
 CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_FK_NO_INDEX_PARENT
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
 SET FOREIGN_KEY_CHECKS=DEFAULT;
 

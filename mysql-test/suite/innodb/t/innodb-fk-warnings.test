@@ -49,7 +49,7 @@ show warnings;
 drop table t1;
 
 create table t1(a int not null primary key, b int) engine=innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_KEYNAME
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a),
 constraint a foreign key a (a) references t1(b)) engine=innodb;
 show warnings;
