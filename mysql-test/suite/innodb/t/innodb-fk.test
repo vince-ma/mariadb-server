@@ -198,7 +198,7 @@ CREATE TABLE `boroda` (
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 
 ALTER TABLE `boroda`
-  ADD FOREIGN KEY `boroda_ibfk_2` (`b`) REFERENCES `boroda`(`id`);
+  ADD FOREIGN KEY (`b`) REFERENCES `boroda`(`id`);
 
 ALTER TABLE `boroda` DROP FOREIGN KEY `boroda_ibfk_2`;
 

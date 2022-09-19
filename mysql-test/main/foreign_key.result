@@ -628,7 +628,7 @@ t2	CREATE TABLE `t2` (
   `id3` int(11) DEFAULT NULL,
   PRIMARY KEY (`id4`),
   KEY `id3` (`id3`),
-  CONSTRAINT `t1_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`)
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 delete from t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`id3`) REFERENCES `t2` (`id4`))

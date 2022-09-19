@@ -5148,35 +5148,53 @@ check_if_field_name_exists(const char *name, List<Create_field> * fields)
 }
 
 
+static
+char * fk_make_prefix(char *buf, uint buf_len, LEX_CSTRING *prefix)
+{
+  char *ptr= buf;
+  prefix->length= std::min(buf_len - FK_INFIX.length - 5, prefix->length);
+  memcpy(ptr, prefix->str, prefix->length);
+  ptr+= prefix->length;
+  memcpy(ptr, LEX_STRING_WITH_LEN(FK_INFIX));
+  ptr+= FK_INFIX.length;
+  DBUG_ASSERT(ptr - buf < (long int) buf_len);
+  return ptr;
+}
+
+
 /**
- Generate key name with given prefix and '_N' suffix where 1 < N < 100
+  Generate key name or foreign constraint name.
+
+  For key name use prefix and '_N' suffix (2 < N < 100). Suffix is added
+  only if needed for uniqueness.
+
+  In case of foreign constraint name insert FK_INFIX between
+  the prefix and '_N' suffix (1 < N < 100). Suffix is added always.
 */
 static Lex_cstring
 make_unique_key_name(THD *thd, LEX_CSTRING prefix,
                      const Lex_ident_set &key_names, bool foreign)
 {
   char buf[MAX_FIELD_NAME - 1];
-  char *ptr= buf;
+  char *ptr;
   Lex_cstring ret;
-  static constexpr LEX_CSTRING fk_suffix= { C_STRING_WITH_LEN("_ibfk_") };
-  DBUG_ASSERT(fk_suffix.length < sizeof(buf));
+  DBUG_ASSERT(FK_INFIX.length < sizeof(buf));
 
-  if (foreign)
-    prefix.length= std::min(sizeof(buf) - fk_suffix.length - 5, prefix.length);
-  else
-    prefix.length= std::min(sizeof(buf) - 5, prefix.length);
-
-  memcpy(ptr, prefix.str, prefix.length);
-  ptr+= prefix.length;
-  DBUG_ASSERT(ptr - buf < (long int)sizeof(buf));
   if (foreign)
   {
-    memcpy(ptr, LEX_STRING_WITH_LEN(fk_suffix));
-    ptr+= fk_suffix.length;
+    ptr= fk_make_prefix(buf, sizeof(buf), &prefix);
     *(ptr++)= '1';
   }
-  ret= {buf, (size_t) (ptr - buf)};
+  else
+  {
+    prefix.length= std::min(sizeof(buf) - 5, prefix.length);
+    memcpy(buf, prefix.str, prefix.length);
+    ptr= buf + prefix.length;
+    DBUG_ASSERT(prefix.length < (long int)sizeof(buf));
+  }
+
   *ptr= 0;
+  ret= {buf, (size_t) (ptr - buf)};
 
   if ((key_names.find(ret) == key_names.end()) &&
       my_strcasecmp(system_charset_info, buf, primary_key_name.str))
@@ -13704,6 +13722,8 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
                       const LEX_CSTRING *new_table_name,
                       FK_rename_vector &fk_rename_backup)
 {
+  char buf[MAX_FIELD_NAME - 1];
+  char *ptr;
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, old_table->db.str,
                                              old_table->table_name.str,
                                              MDL_INTENTION_EXCLUSIVE));
@@ -13719,6 +13739,28 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   MDL_request_list mdl_list;
   for (FK_info &fk: share->foreign_keys)
   {
+    LEX_CSTRING prefix= old_table->table_name;
+    ptr= fk_make_prefix(buf, sizeof(buf), &prefix);
+    prefix= { buf, (size_t) (ptr - buf) };
+    LEX_CSTRING id= fk.foreign_id;
+
+    /* Rename foreign_id if it was generated from table name */
+    if (prefix.length < id.length && !cmp_prefix(id, prefix))
+    {
+      size_t old_pref_len= prefix.length;
+      prefix= *new_table_name;
+      ptr= fk_make_prefix(buf, sizeof(buf), &prefix);
+      prefix= { buf, (size_t) (ptr - buf) };
+      LEX_CSTRING suffix= { id.str + old_pref_len, id.length - old_pref_len };
+      id= { buf, prefix.length + suffix.length };
+      DBUG_ASSERT(id.length < sizeof(buf));
+      memcpy(ptr, suffix.str, suffix.length);
+      ptr+= suffix.length;
+      *ptr= 0;
+      if (fk.foreign_id.strdup(&share->mem_root, id))
+        goto mem_error;
+    }
+
     if (fk.foreign_db.strdup(&share->mem_root, *new_db) ||
         fk.foreign_table.strdup(&share->mem_root, *new_table_name))
       goto mem_error;

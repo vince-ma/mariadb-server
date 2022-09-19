@@ -183,6 +183,14 @@ static inline bool cmp(const LEX_CSTRING a, const LEX_CSTRING b)
 {
   return a.length != b.length || (a.length && memcmp(a.str, b.str, a.length));
 }
+static inline bool cmp_prefix(const LEX_CSTRING a, const LEX_CSTRING b)
+{
+  int ret= cmp_any(a.length, b.length);
+  if (!a.length || !b.length)
+    return ret;
+
+  return memcmp(a.str, b.str, ret > 0 ? b.length : a.length);
+}
 static inline int cmp_ident(const LEX_CSTRING a, const LEX_CSTRING b)
 {
   /*
