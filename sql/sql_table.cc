@@ -3093,7 +3093,7 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
     if (!key->ignore)
     {
       key_parts+=key->columns.elements;
-      if (key->name.str)
+      if (key->name.str && key->type != Key::PRIMARY)
       {
         if (key_names.find(key->name) != key_names.end())
         {
@@ -13842,13 +13842,16 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
     TABLE_LIST tl;
     tl.init_one_table(&ref.db, &ref.name, &ref.name, TL_IGNORE);
     Share_acquire ref_sa(thd, tl);
-    if (!ref_sa.share)
+    if (ref_sa.fk_error(thd, true))
       return true;
-    if (fk_rename_backup.push_back(std::move(ref_sa)))
-      goto mem_error;
-    DBUG_ASSERT(!ref_sa.share);
-    if (!fk_rename_backup.back().sa.share)
-      return true; // ctor failed, share was released
+    else if (ref_sa.share)
+    {
+      if (fk_rename_backup.push_back(std::move(ref_sa)))
+        goto mem_error;
+      DBUG_ASSERT(!ref_sa.share);
+      if (!fk_rename_backup.back().sa.share)
+        return true; // ctor failed, share was released
+    }
   }
 
   for (FK_ddl_backup &ref: fk_rename_backup)
