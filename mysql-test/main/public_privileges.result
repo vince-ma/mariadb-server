@@ -1,4 +1,7 @@
 #
+# MDEV-5215 Granted to PUBLIC
+#
+#
 # Test DB/TABLE/COLUMN privileges in queries
 #
 SHOW GRANTS FOR PUBLIC;

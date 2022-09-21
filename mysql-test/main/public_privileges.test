@@ -1,3 +1,8 @@
+--source include/not_embedded.inc
+--echo #
+--echo # MDEV-5215 Granted to PUBLIC
+--echo #
+
 --echo #
 --echo # Test DB/TABLE/COLUMN privileges in queries
 --echo #

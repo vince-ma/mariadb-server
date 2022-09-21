@@ -1,3 +1,8 @@
+--source include/not_embedded.inc
+--echo #
+--echo # MDEV-5215 Granted to PUBLIC
+--echo #
+
 SHOW GRANTS FOR PUBLIC;
 
 --echo # it is not PUBLIC but an user

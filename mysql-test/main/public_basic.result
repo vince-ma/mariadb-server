@@ -1,3 +1,6 @@
+#
+# MDEV-5215 Granted to PUBLIC
+#
 SHOW GRANTS FOR PUBLIC;
 Grants for PUBLIC
 # it is not PUBLIC but an user
