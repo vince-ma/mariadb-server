@@ -111,11 +111,6 @@ call testdb.p1();
 1
 1
 connection default;
-SHOW PROCESSLIST;
-Id	User	Host	db	Command	Time	State	Info	Progress
-#	root	#	testdb	Query	#	#	SHOW PROCESSLIST	0.000
-#	testuser	#	NULL	Sleep	#	#	NULL	0.000
-connection default;
 use test;
 disconnect testuser;
 REVOKE PROCESS ON *.* from PUBLIC;
