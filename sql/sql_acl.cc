@@ -11884,6 +11884,7 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   thd->make_lex_string(&combo->host, combo->host.str, strlen(combo->host.str));
 
   combo->auth= NULL;
+  combo->is_public= false;
 
   if (user_list.push_back(combo, thd->mem_root))
     DBUG_RETURN(TRUE);
