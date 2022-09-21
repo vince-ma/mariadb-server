@@ -2986,5 +2986,6 @@ DROP DATABASE test1;
 #
 # MDEV-16733 mysqldump --tab and --xml options are conflicting
 #
+--replace_result mysqldump.exe mysqldump
 --error 1
 --exec $MYSQL_DUMP --xml --tab=$MYSQLTEST_VARDIR/tmp 2>&1
