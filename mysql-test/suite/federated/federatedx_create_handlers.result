@@ -514,6 +514,9 @@ ANALYZE FORMAT=JSON SELECT * from federated.t1 UNION ALL
 SELECT * from federated.t2;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "union_result": {
       "message": "PUSHED UNION"

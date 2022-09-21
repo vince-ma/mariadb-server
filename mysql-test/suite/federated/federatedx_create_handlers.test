@@ -301,6 +301,7 @@ EXPLAIN FORMAT=JSON SELECT * from federated.t1 UNION ALL
 
 ANALYZE SELECT * from federated.t1 UNION ALL SELECT * from federated.t2;
 
+--source include/analyze-format.inc
 ANALYZE FORMAT=JSON SELECT * from federated.t1 UNION ALL
   SELECT * from federated.t2;
 
