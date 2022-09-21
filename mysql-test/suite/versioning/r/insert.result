@@ -289,6 +289,7 @@ insert into t1(x, row_start, row_end) values (8, '1980-01-01 00:00:00', '1980-01
 ERROR HY000: The MariaDB server is running with the --secure-timestamp=YES option so it cannot execute this statement
 # restart: --secure-timestamp=REPLICATION
 create user nobody;
+grant all privileges on test.* to nobody;
 set @@system_versioning_insert_history= 1;
 insert into test.t1(x, row_start, row_end) values (9, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 ERROR 42000: Access denied; you need (at least one of) the BINLOG REPLAY privilege(s) for this operation

@@ -220,6 +220,7 @@ insert into t1(x, row_start, row_end) values (8, '1980-01-01 00:00:00', '1980-01
 --let $restart_parameters= --secure-timestamp=REPLICATION
 --source include/restart_mysqld.inc
 create user nobody;
+grant all privileges on test.* to nobody;
 change_user nobody;
 set @@system_versioning_insert_history= 1;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
