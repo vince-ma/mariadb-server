@@ -48,7 +48,7 @@ SET GLOBAL wsrep_cluster_address = '';
 SET SESSION wsrep_sync_wait = DEFAULT;
 
 --connection node_2
---error 2013 # CR_SERVER_LOST
+--error 2013,2026 # CR_SERVER_LOST CR_SSL_CONNECTION_ERROR
 INSERT INTO t1 VALUES (6);
 
 --connection node_1
