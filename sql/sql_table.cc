@@ -9652,8 +9652,6 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         append_identifier(thd, &buff, db);
         buff.append('.');
         append_identifier(thd, &buff, tbl);
-        // FIXME: ER_FK_COLUMN_CANNOT_DROP_CHILD depracated?
-        DBUG_ASSERT(0);
         my_error(ER_FK_COLUMN_CANNOT_DROP_CHILD, MYF(0), bad_column_name,
                 f_key->foreign_id.str, buff.c_ptr());
         DBUG_RETURN(true);

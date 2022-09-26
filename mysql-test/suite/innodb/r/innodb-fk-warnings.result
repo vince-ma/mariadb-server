@@ -41,10 +41,10 @@ drop table t1;
 create table t1(a int not null primary key, b int) engine=innodb;
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a),
 constraint a foreign key a (a) references t1(b)) engine=innodb;
-ERROR 42000: Duplicate key name 'a'
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'a'
 show warnings;
 Level	Code	Message
-Error	1061	Duplicate key name 'a'
+Error	1826	Duplicate FOREIGN KEY constraint name 'a'
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a)) engine=innodb;
 alter table t2 add constraint b foreign key (b) references t2(b);
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")

@@ -4461,8 +4461,6 @@ innobase_check_foreigns_low(
 				strlen(foreign->foreign_table_name),
 				NULL);
 			*buf_end = '\0';
-			// FIXME: ER_FK_COLUMN_CANNOT_DROP_CHILD depracated?
-			ut_ad(0);
 			my_error(ER_FK_COLUMN_CANNOT_DROP_CHILD,
 				 MYF(0), col_name, foreign->id,
 				 display_name);

@@ -156,7 +156,7 @@ Table	Create Table
   `b` int(11) unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `a` (`a`),
-  KEY `b_2` (`b`),
+  KEY `b` (`b`),
   CONSTRAINT `#boroda_ibfk_1` FOREIGN KEY (`a`) REFERENCES `#boroda` (`id`),
   CONSTRAINT `#boroda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `#boroda` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3

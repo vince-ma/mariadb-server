@@ -344,25 +344,88 @@ create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id
 alter table t1 drop id;
 --error ER_FK_NO_INDEX_CHILD
 alter table t2 drop id;
-alter table t2 drop foreign key fk;
+# TODO: generated index is not auto-dropped. Should it be auto-dropped?
+alter table t2 drop foreign key fk, drop index fk;
 drop tables t1, t2;
 
 --echo # Check drop index
-create or replace table t1 (id int primary key, a int unique key) engine innodb;
+create or replace table t1 (id int primary key, a int unique key, b int unique key) engine innodb;
 create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id)) engine innodb;
 --error ER_FK_NO_INDEX_CHILD
 drop index fk on t2;
 # FIXME: must be better error code (f.ex. ER_DROP_INDEX_RK)
 --error ER_FK_NO_INDEX_PARENT
 drop index `primary` on t1;
-# FIXME: drop index before FK
-# FIXME: check multiple foreign keys having one index
-# FIXME: check multiple foreign keys referencing one index?
-# FIXME: check drop index at FK but created new one good index
-# FIXME: check drop index and drop FK
-# FIXME: check all the above without check_foreign
-# FIXME: test when qsort returns different order (see my_qsort() in mysql_prepare_create_table())
+# Drop index before FK
+create or replace table t2 (
+  id int primary key, a int unique, b int unique, foreign key fk (b) references t1 (b)) engine innodb;
+drop index `primary` on t1;
+drop index `a` on t1;
+--error ER_FK_NO_INDEX_PARENT
+drop index `b` on t1;
+drop index `primary` on t2;
+drop index `a` on t2;
+--error ER_FK_NO_INDEX_CHILD
+drop index `b` on t2;
 drop tables t2, t1;
+--echo # Check multiple foreign keys having one index and
+--echo # multiple foreign keys referencing one index.
+create table t1 (
+  id int primary key,
+  a int unique key,
+  b int unique key) engine innodb;
+create table t2 (
+  id int primary key, a int unique, b int,
+  foreign key fk1 (b) references t1 (id),
+  foreign key fk2 (b) references t1 (b),
+  foreign key fk3 (b) references t1 (b)) engine innodb;
+drop index `primary` on t2;
+drop index `a` on t2;
+--error ER_FK_NO_INDEX_CHILD
+drop index `fk3` on t2;
+alter table t2 drop foreign key fk3;
+--error ER_FK_NO_INDEX_CHILD
+drop index `fk3` on t2;
+alter table t2 drop foreign key fk1;
+--error ER_FK_NO_INDEX_CHILD
+drop index `fk3` on t2;
+--error ER_FK_NO_INDEX_PARENT
+drop index `b` on t1;
+alter table t2 drop foreign key fk2;
+drop index `fk3` on t2;
+drop index `b` on t1;
+drop tables t2, t1;
+
+--echo # Check drop index at FK but created new one good index
+create table t1 (id int primary key) engine innodb;
+create table t2 (id int, foreign key fk (id) references t1 (id)) engine innodb;
+--error ER_FK_NO_INDEX_CHILD
+alter table t2 drop index fk;
+alter table t2 drop index fk, add index i1 (id), add unique i2 (id);
+alter table t2 drop index i1;
+--error ER_FK_NO_INDEX_CHILD
+alter table t2 drop index i2;
+alter table t2 drop index i2, add index i1 (id), add unique i2 (id);
+alter table t2 drop index i2;
+--error ER_FK_NO_INDEX_CHILD
+alter table t2 drop index i1;
+--echo # Check drop index and drop FK
+alter table t2 drop index i1, drop foreign key fk;
+drop tables t2, t1;
+
+# Test when qsort returns different order (see my_qsort() in mysql_prepare_create_table())
+create table t1 (a int, b int, key (a, b)) engine innodb;
+create table t2 (id int, a int, b int) engine innodb;
+alter table t2 add foreign key fk (a, b) references t1 (a, b),
+  add unique i1 (a), add primary key (id);
+--error ER_FK_NO_INDEX_CHILD
+alter table t2 drop index fk;
+alter table t2 drop index i1;
+alter table t2 drop primary key;
+alter table t2 drop index fk, drop foreign key fk;
+drop tables t2, t1;
+
+# FIXME: check all the above without check_foreign
 
 --echo # Check self-references
 create or replace table t1 (id int primary key, id2 int references t1 (id));
