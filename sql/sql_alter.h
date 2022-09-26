@@ -453,6 +453,10 @@ public:
     Table_name ref;
     const FK_info *fk;
   };
+  /*
+    These six contain only non-self-refs. They are used to update info in
+    referenced tables.
+  */
   // NB: multiple foreign keys can utilize same column (see fk_prepare_rename())
   mbd::set<FK_rename_col> fk_renamed_cols;
   mbd::set<FK_rename_col> rk_renamed_cols;

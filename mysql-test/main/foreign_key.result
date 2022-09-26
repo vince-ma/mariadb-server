@@ -489,8 +489,6 @@ ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
 alter table t2 drop id;
 ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
 alter table t2 drop foreign key fk;
-Warnings:
-Warning	1088	failed to load FOREIGN KEY constraints
 drop tables t1, t2;
 # Check drop index
 create or replace table t1 (id int primary key, a int unique key) engine innodb;
@@ -649,7 +647,7 @@ t1	CREATE TABLE `t1` (
   `A` int(11) DEFAULT NULL,
   `x` int(11) DEFAULT NULL,
   UNIQUE KEY `A` (`A`),
-  KEY `x_2` (`x`),
+  KEY `x` (`x`),
   CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`x`) REFERENCES `t1` (`A`),
   CONSTRAINT `t1_ibfk_2` FOREIGN KEY (`x`) REFERENCES `t1` (`A`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

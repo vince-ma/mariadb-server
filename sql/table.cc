@@ -10101,22 +10101,10 @@ bool TABLE_SHARE::fk_check_consistency(THD *thd)
   {
     if (rk.self_ref())
     {
-      if (cmp_db_table(rk.foreign_db, rk.foreign_table))
-      {
-        bool warn;
-        if (!warned_self.insert(Table_name(rk.foreign_db, rk.foreign_table), &warn))
-          return true;
-        if (warn)
-        {
-          my_printf_error(ER_UNKNOWN_ERROR,
-                          "Self-reference in referenced list %s.%s does not point to this table",
-                          MYF(0), rk.foreign_db, rk.foreign_table);
-        }
-        DBUG_ASSERT(warn || error);
-        error= true;
-      }
       rk_self_refs++;
+      continue;
     }
+
     TABLE_LIST tl;
     tl.init_one_table(&rk.foreign_db, &rk.foreign_table, NULL, TL_IGNORE);
     Share_acquire sa(thd, tl);
@@ -10166,12 +10154,12 @@ bool TABLE_SHARE::fk_check_consistency(THD *thd)
   warned.clear();
   warned_self.clear();
 
-  if (referenced_keys.elements - rk_self_refs)
+  if (referenced_keys.elements)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_UNKNOWN_ERROR,
                         "Found %u referenced keys",
-                        referenced_keys.elements - rk_self_refs);
+                        referenced_keys.elements);
   }
 
   for (FK_info &fk: foreign_keys)
@@ -10193,6 +10181,7 @@ bool TABLE_SHARE::fk_check_consistency(THD *thd)
         error= true;
       }
       fk_self_refs++;
+      continue;
     }
     TABLE_LIST tl;
     tl.init_one_table(fk.ref_db_ptr(), &fk.referenced_table, NULL, TL_IGNORE);
@@ -10248,13 +10237,15 @@ bool TABLE_SHARE::fk_check_consistency(THD *thd)
                         foreign_keys.elements - fk_self_refs);
   }
 
-  if (fk_self_refs != rk_self_refs)
+  if (rk_self_refs)
   {
     my_printf_error(ER_UNKNOWN_ERROR,
-                    "Self-references count in foreign list and referenced list do not match: %u vs %u",
-                    MYF(0), fk_self_refs, rk_self_refs);
+                    "Found %u self-references in referenced list (must be 0)",
+                    MYF(0), rk_self_refs);
+    error= true;
   }
-  else if (fk_self_refs)
+
+  if (fk_self_refs)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_UNKNOWN_ERROR,

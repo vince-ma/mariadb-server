@@ -2787,7 +2787,7 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
   FK_list &foreign_keys=  alter_ctx->foreign_keys;
   FK_list &referenced_keys= alter_ctx->referenced_keys;
   Lex_cstring   key_name;
-  Lex_ident_set key_names;
+  Lex_ident_set key_names; /* Used for uniqueness check */
   Lex_ident_set fkey_names;
   Create_field	*sql_field,*dup_field;
   uint		field,null_fields,max_key_length;
@@ -3084,6 +3084,8 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
         {
           key2->ignore= true;
           key2->ignore_reason= key;
+          if (key2->name.str)
+            key_names.erase(key2->name);
           key_parts-= key2->columns.elements;
           (*key_count)--;
         }
@@ -3188,11 +3190,6 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
           my_error(ER_OUT_OF_RESOURCES, MYF(0));
           DBUG_RETURN(true);
         }
-        if (fk->self_ref() && referenced_keys.push_back(fk))
-        {
-          my_error(ER_OUT_OF_RESOURCES, MYF(0));
-          DBUG_RETURN(true);
-        }
         if (!fkey_names.insert(fk->foreign_id))
           DBUG_RETURN(true);				// Out of memory
       }
@@ -3248,11 +3245,6 @@ mysql_prepare_create_table(THD *thd, Alter_table_ctx *alter_ctx,
       fk->foreign_id= fkey.constraint_name;
       fk->foreign_idx= key_info;
       if (foreign_keys.push_back(fk))
-      {
-        my_error(ER_OUT_OF_RESOURCES, MYF(0));
-        DBUG_RETURN(TRUE);
-      }
-      if (fk->self_ref() && referenced_keys.push_back(fk))
       {
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
         DBUG_RETURN(TRUE);
@@ -3764,6 +3756,7 @@ without_overlaps_err:
   }
 
   for (FK_info &fk: foreign_keys)
+  {
     if (!fk.foreign_idx)
       if (!(fk.foreign_idx= fk.find_idx(*key_info_buffer, *key_count, true)) &&
           thd->variables.check_foreign())
@@ -3772,6 +3765,14 @@ without_overlaps_err:
                  fk.foreign_table.str);
         DBUG_RETURN(true);
       }
+    if (thd->variables.check_foreign() && fk.self_ref())
+      if (!fk.find_idx(*key_info_buffer, *key_count, false))
+      {
+        my_error(ER_FK_NO_INDEX_PARENT, MYF(0), fk.foreign_table.str,
+                 fk.foreign_id.str, fk.referenced_table.str);
+        DBUG_RETURN(true);
+      }
+  }
 
   if (thd->variables.check_foreign())
     for (FK_info &rk: referenced_keys)
@@ -8765,12 +8766,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           }
         }
       }
-      Table_name t(fk.ref_table(thd->mem_root));
-      if (lower_case_table_names)
-        t.lowercase(thd->mem_root);
-      if (0 != cmp_table(t.db, table->s->db) ||
-          0 != cmp_table(t.name, table->s->table_name))
+      if (!fk.self_ref())
       {
+        Table_name t(fk.ref_table(thd->mem_root));
+        if (lower_case_table_names)
+          t.lowercase(thd->mem_root);
         if (alter_ctx->fk_dropped.push_back({t, &fk}))
           goto err;
         if (!fk_tables_to_lock.insert(t))
@@ -8803,8 +8803,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     if (alter_ctx->is_table_renamed())
     {
-      if (0 == cmp_table(fk.ref_db(), table->s->db) &&
-          0 == cmp_table(fk.referenced_table, table->s->table_name))
+      if (fk.self_ref())
       {
         key->ref_db= {NULL, 0};
         key->ref_table= alter_ctx->new_name;
@@ -8826,8 +8825,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   {
     for (const FK_info &rk: table->s->referenced_keys)
     {
-      if (0 == cmp_table(rk.foreign_db, table->s->db) &&
-          0 == cmp_table(rk.foreign_table, table->s->table_name))
+      DBUG_ASSERT(!rk.self_ref());
+      if (rk.self_ref())
         continue;
       Table_name rk_table(rk.for_table(thd->mem_root));
       const FK_table_to_lock *x= fk_tables_to_lock.insert(rk_table);
@@ -13182,8 +13181,7 @@ bool Alter_table_ctx::fk_prepare_rename(THD *thd, TABLE *table, Create_field *de
   Table_name altered_table(table->s->db, table->s->table_name);
   for (const FK_info &fk: table->s->foreign_keys)
   {
-    if (0 == cmp_table(fk.ref_db(), table->s->db) &&
-        0 == cmp_table(fk.referenced_table, table->s->table_name))
+    if (fk.self_ref())
       continue;
     Table_name referenced_table(fk.ref_table(thd->mem_root));
     for (Lex_cstring &fld: fk.foreign_fields)
@@ -13228,8 +13226,8 @@ bool Alter_table_ctx::fk_prepare_rename(THD *thd, TABLE *table, Create_field *de
   }
   for (const FK_info &rk: table->s->referenced_keys)
   {
-    if (0 == cmp_table(rk.foreign_db, table->s->db) &&
-        0 == cmp_table(rk.foreign_table, table->s->table_name))
+    DBUG_ASSERT(!rk.self_ref());
+    if (rk.self_ref())
       continue;
     Table_name foreign_table(rk.for_table(thd->mem_root));
     for (Lex_cstring &fld: rk.referenced_fields)

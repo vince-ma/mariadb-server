@@ -1473,12 +1473,6 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
       if (read_string(*field_name, &s->mem_root, p))
         return true;
     }
-    /* If it is self-reference we also push to referenced_keys: */
-    if (dst->self_ref() && s->referenced_keys.push_back(dst, &s->mem_root))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      return true;
-    }
   }
   if (read_length(rk_count, p))
   {
