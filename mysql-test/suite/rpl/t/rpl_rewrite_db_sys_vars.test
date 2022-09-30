@@ -20,6 +20,14 @@ create database y;
 # This DB will be rewrited from test case
 create database test_replica;
 SELECT @@GLOBAL.replicate_rewrite_db;
+let $rewrite_db_sss= query_get_value(SHOW SLAVE STATUS, Replicate_Rewrite_DB, 1);
+--echo # Ensuring SHOW SLAVE STATUS produces correct value for Replicate_Rewrite_DB...
+if (`SELECT strcmp(@@global.replicate_rewrite_db, "$rewrite_db_sss") != 0`)
+{
+    die SHOW SLAVE STATUS Replicate_Rewrite_DB value $rewrite_db_sss does not match variable @@GLOBAL.replicate_rewrite_db;
+}
+--echo # ...success
+
 
 --echo # Create DBs and tables on primary
 connection master;
@@ -58,6 +66,13 @@ SET @@GLOBAL.replicate_rewrite_db="test_master->test_replica";
 SELECT @@GLOBAL.replicate_rewrite_db;
 SHOW DATABASES like 'test_replica';
 source include/start_slave.inc;
+let $rewrite_db_sss= query_get_value(SHOW SLAVE STATUS, Replicate_Rewrite_DB, 1);
+--echo # Ensuring SHOW SLAVE STATUS produces correct value for Replicate_Rewrite_DB...
+if (`SELECT strcmp(@@global.replicate_rewrite_db, "$rewrite_db_sss") != 0`)
+{
+    die SHOW SLAVE STATUS Replicate_Rewrite_DB value $rewrite_db_sss does not match variable @@GLOBAL.replicate_rewrite_db;
+}
+--echo # ...success
 
 --echo # Create DB and tables on primary
 connection master;

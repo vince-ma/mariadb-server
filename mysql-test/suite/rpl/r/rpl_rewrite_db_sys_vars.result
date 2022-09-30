@@ -15,6 +15,8 @@ create database test_replica;
 SELECT @@GLOBAL.replicate_rewrite_db;
 @@GLOBAL.replicate_rewrite_db
 primary_db1->replica_db1,x->y
+# Ensuring SHOW SLAVE STATUS produces correct value for Replicate_Rewrite_DB...
+# ...success
 # Create DBs and tables on primary
 connection master;
 create database primary_db1;
@@ -65,6 +67,8 @@ SHOW DATABASES like 'test_replica';
 Database (test_replica)
 test_replica
 include/start_slave.inc
+# Ensuring SHOW SLAVE STATUS produces correct value for Replicate_Rewrite_DB...
+# ...success
 # Create DB and tables on primary
 connection master;
 create database test_master;
