@@ -39,12 +39,15 @@ connection server_1;
 # Create sequences with specific engines per server
 connection server_1;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/save_master_gtid.inc
 connection server_2;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 connection server_3;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 # Pt.1 Ensure SETVAL replicates and binlogs correctly
 connection server_1;
@@ -65,6 +68,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged SETVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -74,6 +79,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged SETVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -82,6 +89,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 connection server_1;
@@ -102,6 +111,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged NEXTVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -111,6 +122,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged NEXTVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -119,6 +132,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Cleanup
 connection server_1;
@@ -130,12 +145,15 @@ include/sync_with_master_gtid.inc
 # Create sequences with specific engines per server
 connection server_1;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/save_master_gtid.inc
 connection server_2;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 connection server_3;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 # Pt.1 Ensure SETVAL replicates and binlogs correctly
 connection server_1;
@@ -156,6 +174,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged SETVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -165,6 +185,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged SETVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -173,6 +195,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 connection server_1;
@@ -193,6 +217,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged NEXTVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -202,6 +228,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged NEXTVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -210,6 +238,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Cleanup
 connection server_1;
@@ -221,12 +251,15 @@ include/sync_with_master_gtid.inc
 # Create sequences with specific engines per server
 connection server_1;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/save_master_gtid.inc
 connection server_2;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 connection server_3;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 # Pt.1 Ensure SETVAL replicates and binlogs correctly
 connection server_1;
@@ -247,6 +280,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged SETVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -256,6 +291,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged SETVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -264,6 +301,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 connection server_1;
@@ -284,6 +323,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged NEXTVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -293,6 +334,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged NEXTVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -301,6 +344,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Cleanup
 connection server_1;
@@ -312,12 +357,15 @@ include/sync_with_master_gtid.inc
 # Create sequences with specific engines per server
 connection server_1;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/save_master_gtid.inc
 connection server_2;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 connection server_3;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 # Pt.1 Ensure SETVAL replicates and binlogs correctly
 connection server_1;
@@ -338,6 +386,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged SETVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -347,6 +397,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged SETVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -355,6 +407,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 connection server_1;
@@ -375,6 +429,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged NEXTVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -384,6 +440,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged NEXTVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -392,6 +450,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Cleanup
 connection server_1;
@@ -403,12 +463,15 @@ include/sync_with_master_gtid.inc
 # Create sequences with specific engines per server
 connection server_1;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/save_master_gtid.inc
 connection server_2;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 connection server_3;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 # Pt.1 Ensure SETVAL replicates and binlogs correctly
 connection server_1;
@@ -429,6 +492,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged SETVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -438,6 +503,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged SETVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -446,6 +513,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 connection server_1;
@@ -466,6 +535,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged NEXTVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -475,6 +546,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged NEXTVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -483,6 +556,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Cleanup
 connection server_1;
@@ -494,12 +569,15 @@ include/sync_with_master_gtid.inc
 # Create sequences with specific engines per server
 connection server_1;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/save_master_gtid.inc
 connection server_2;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 connection server_3;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 # Pt.1 Ensure SETVAL replicates and binlogs correctly
 connection server_1;
@@ -520,6 +598,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged SETVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -529,6 +609,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged SETVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -537,6 +619,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 connection server_1;
@@ -557,6 +641,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged NEXTVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -566,6 +652,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged NEXTVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -574,6 +662,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Cleanup
 connection server_1;
@@ -585,12 +675,15 @@ include/sync_with_master_gtid.inc
 # Create sequences with specific engines per server
 connection server_1;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/save_master_gtid.inc
 connection server_2;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 connection server_3;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=MyISAM;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 # Pt.1 Ensure SETVAL replicates and binlogs correctly
 connection server_1;
@@ -611,6 +704,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged SETVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -620,6 +715,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged SETVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -628,6 +725,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 connection server_1;
@@ -648,6 +747,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged NEXTVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -657,6 +758,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged NEXTVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -665,6 +768,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Cleanup
 connection server_1;
@@ -676,12 +781,15 @@ include/sync_with_master_gtid.inc
 # Create sequences with specific engines per server
 connection server_1;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/save_master_gtid.inc
 connection server_2;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 connection server_3;
 SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=InnoDB;
+FLUSH LOGS;
 include/sync_with_master_gtid.inc
 # Pt.1 Ensure SETVAL replicates and binlogs correctly
 connection server_1;
@@ -702,6 +810,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged SETVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -711,6 +821,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged SETVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -719,6 +831,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Pt.2 Ensure NEXTVAL replicates and binlogs correctly
 connection server_1;
@@ -739,6 +853,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_2 binlogged NEXTVAL with the correct columns
 connection server_2;
 FLUSH LOGS;
@@ -748,6 +864,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # ..success
 # Verifying only expected column ids appear in binlog event output..
 # ..success
+# Verifying the event group is only marked with DDL if all rows are present..
+# ..success
 # Validate server_3 binlogged NEXTVAL with the correct columns
 connection server_3;
 FLUSH LOGS;
@@ -756,6 +874,8 @@ include/ensure_binlog_row_event_columns.inc [(1,2,3,4,5,6,7,8)]
 # Verifying all expected column ids appear in binlog event output..
 # ..success
 # Verifying only expected column ids appear in binlog event output..
+# ..success
+# Verifying the event group is only marked with DDL if all rows are present..
 # ..success
 # Cleanup
 connection server_1;

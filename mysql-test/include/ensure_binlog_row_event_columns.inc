@@ -68,5 +68,17 @@ while($i <= $last_expected_col)
 --source include/assert_grep.inc
 --echo # ..success
 
+--let assert_count= 0
+--let assert_text= The GTID event should not be marked as ddl
+if (`SELECT $num_cols_found = 8`)
+{
+  --inc $assert_count
+  --let assert_text= The GTID event should be marked as ddl
+}
+--echo # Verifying the event group is only marked with DDL if all rows are present..
+--let assert_select= GTID.*ddl
+--source include/assert_grep.inc
+--echo # ..success
+
 --let $include_filename= ensure_binlog_row_event_columns.inc [$expected_columns]
 --source include/end_include_file.inc

@@ -11,14 +11,17 @@
 --echo # Create sequences with specific engines per server
 --connection server_1
 --eval SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=$server_1_engine
+FLUSH LOGS;
 --source include/save_master_gtid.inc
 
 --connection server_2
 --eval SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=$server_2_engine
+FLUSH LOGS;
 --source include/sync_with_master_gtid.inc
 
 --connection server_3
 --eval SET STATEMENT sql_log_bin=0 FOR create sequence s1 cache=0 engine=$server_3_engine
+FLUSH LOGS;
 --source include/sync_with_master_gtid.inc
 
 

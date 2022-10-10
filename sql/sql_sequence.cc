@@ -654,7 +654,16 @@ int sequence_definition::write(TABLE *table, bool all_fields)
     bitmap_set_bit(table->rpl_write_set, ROUND_FIELD_NO);
   }
   else
+  {
     table->rpl_write_set= &table->s->all_set;
+
+    /*
+      Writing all row rows is effectively an ALTER SEQUENCE and should be
+      treated as a DDL to ensure replay order is consistent on replicas
+    */
+    DBUG_ASSERT(table->in_use);
+    table->in_use->transaction.stmt.mark_trans_did_ddl();
+  }
 
   /* Update table */
   save_write_set= table->write_set;
