@@ -2046,7 +2046,7 @@ bool vers_row_same_trx(dict_index_t* index, const rec_t* rec, que_thr_t* thr)
   {
     ib::error() << "foreign constraints: secondary index " << index->name <<
                    " of table " << index->table->name << " is out of sync";
-    ut_ad(!"secondary index is out of sync");
+    ut_ad("secondary index is out of sync" == 0);
     mtr.commit();
     return false;
   }
@@ -3625,7 +3625,9 @@ row_ins(
 	ut_ad(node->state == INS_NODE_INSERT_ENTRIES);
 
 	while (node->index != NULL) {
-		if (!(node->index->type & DICT_FTS)) {
+		if (node->index->type & (DICT_FTS | DICT_CORRUPT)
+		    || !node->index->is_committed()) {
+		} else {
 			dberr_t err = row_ins_index_entry_step(node, thr);
 
 			if (err != DB_SUCCESS) {

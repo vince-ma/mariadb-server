@@ -384,7 +384,13 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
   *hton_can_recreate= (!sequence &&
                        ha_check_storage_engine_flag(hton, HTON_CAN_RECREATE));
 
-  if (versioned)
+  if (versioned &&
+      /*
+         Transparent testing for System Versioning should fail
+         on TRUNCATE TABLE.
+      */
+      !(DBUG_EVALUATE_IF("sysvers_force", true, false) ||
+        DBUG_EVALUATE_IF("sysvers_force_trx", true, false)))
   {
     my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "TRUNCATE TABLE");
     DBUG_RETURN(TRUE);
