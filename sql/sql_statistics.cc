@@ -845,7 +845,7 @@ public:
 
   void get_stat_values()
   {
-    Table_statistics *read_stats= table_share->stats_cb.table_stats;
+    Table_statistics *read_stats= table_share->stats_cb->table_stats;
     read_stats->cardinality_is_null= TRUE;
     read_stats->cardinality= 0;
     if (find_stat())
@@ -2036,7 +2036,7 @@ static
 void create_min_max_statistical_fields_for_table_share(THD *thd,
                                                        TABLE_SHARE *table_share)
 {
-  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
+  TABLE_STATISTICS_CB *stats_cb= table_share->stats_cb;
   Table_statistics *stats= stats_cb->table_stats; 
 
   if (stats->min_max_record_buffers)
@@ -2218,7 +2218,7 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
 {
   Field **field_ptr;
   KEY *key_info, *end;
-  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
+  TABLE_STATISTICS_CB *stats_cb= table_share->stats_cb;
 
   DBUG_ENTER("alloc_statistics_for_table_share");
 
@@ -2893,12 +2893,12 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
   DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
 
-  if (!table_share->stats_cb.start_stats_load())
-    DBUG_RETURN(table_share->stats_cb.stats_are_ready() ? 0 : 1);
+  if (!table_share->stats_cb->start_stats_load())
+    DBUG_RETURN(table_share->stats_cb->stats_are_ready() ? 0 : 1);
 
   if (alloc_statistics_for_table_share(thd, table_share))
   {
-    table_share->stats_cb.abort_stats_load();
+    table_share->stats_cb->abort_stats_load();
     DBUG_RETURN(1);
   }
 
@@ -2906,7 +2906,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
 
   /* Read statistics from the statistical table table_stats */
-  Table_statistics *read_stats= table_share->stats_cb.table_stats;
+  Table_statistics *read_stats= table_share->stats_cb->table_stats;
   stat_table= stat_tables[TABLE_STAT].table;
   Table_stat table_stat(stat_table, table);
   table_stat.set_key_fields();
@@ -2923,7 +2923,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     column_stat.get_stat_values();
     total_hist_size+= table_field->read_stats->histogram.get_size();
   }
-  table_share->stats_cb.total_hist_size= total_hist_size;
+  table_share->stats_cb->total_hist_size= total_hist_size;
 
   /* Read statistics from the statistical table index_stats */
   stat_table= stat_tables[INDEX_STAT].table;
@@ -2985,7 +2985,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     }
   }
 
-  table_share->stats_cb.end_stats_load();
+  table_share->stats_cb->end_stats_load();
   DBUG_RETURN(0);
 }
 
@@ -2997,7 +2997,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 
 void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
 {
-  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
+  TABLE_STATISTICS_CB *stats_cb= table_share->stats_cb;
   Table_statistics *table_stats= stats_cb->table_stats;
   if (!table_stats)
     return;
@@ -3058,7 +3058,7 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
 static
 int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 {
-  TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
+  TABLE_STATISTICS_CB *stats_cb= table->s->stats_cb;
   DBUG_ENTER("read_histograms_for_table");
 
   if (stats_cb->start_histograms_load())
@@ -3171,13 +3171,13 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
     {
       if (table_share->table_category == TABLE_CATEGORY_USER)
       {
-        if (table_share->stats_cb.stats_are_ready())
+        if (table_share->stats_cb->stats_are_ready())
         {
           if (!tl->table->stats_is_read)
             dump_stats_from_share_to_table(tl->table);
           tl->table->histograms_are_read=
-            table_share->stats_cb.histograms_are_ready();
-          if (table_share->stats_cb.histograms_are_ready() ||
+            table_share->stats_cb->histograms_are_ready();
+          if (table_share->stats_cb->histograms_are_ready() ||
               thd->variables.optimizer_use_condition_selectivity <= 3)
             continue;
         }
@@ -3625,7 +3625,10 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
 
 void set_statistics_for_table(THD *thd, TABLE *table)
 {
-  TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
+  if (!table->s->stats_cb)
+    table->s->stats_cb= new TABLE_STATISTICS_CB;
+
+  TABLE_STATISTICS_CB *stats_cb= table->s->stats_cb;
   Table_statistics *read_stats= stats_cb->table_stats;
   table->used_stat_records= 
     (!check_eits_preferred(thd) ||
