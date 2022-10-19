@@ -2096,7 +2096,7 @@ bool vers_row_same_trx(dict_index_t* index, const rec_t* rec, que_thr_t* thr)
   {
     ib::error() << "foreign constraints: secondary index " << index->name <<
                    " of table " << index->table->name << " is out of sync";
-    ut_ad(!"secondary index is out of sync");
+    ut_ad("secondary index is out of sync" == 0);
     mtr.commit();
     return false;
   }
