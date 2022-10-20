@@ -4113,6 +4113,22 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     Log_event_type typ= ev->get_type_code();
 
     /*
+      If parallelism is enabled on the slave, we need to check if we are
+      starting after an idle state. If so, we need to update the
+      last_master_timestamp so the Seconds_Behind_Master calculation doesn't
+      compare using a timestamp from a commit long ago. This is done for
+      the scope of an entire event group, because Seconds_Behind_Master
+      should reflect the timestamp that the transaction finished.
+    */
+    if (rli->mi->using_parallel() && ev->get_type_code() == GTID_EVENT)
+    {
+      if (rli->parallel.workers_idle())
+        rli->last_master_timestamp_needs_update= true;
+      else if (rli->last_master_timestamp_needs_update)
+        rli->last_master_timestamp_needs_update= false;
+    }
+
+    /*
       Even if we don't execute this event, we keep the master timestamp,
       so that seconds behind master shows correct delta (there are events
       that are not replayed, so we keep falling behind).
@@ -4125,7 +4141,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       the user might be surprised to see a claim that the slave is up to date
       long before those queued events are actually executed.
      */
-    if (!rli->mi->using_parallel() &&
+    if ((!rli->mi->using_parallel() ||
+         rli->last_master_timestamp_needs_update) &&
         !(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
@@ -4200,7 +4217,9 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
           data modification event execution last long all this time
           Seconds_Behind_Master is zero.
         */
-        if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
+        if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT &&
+            ev->get_type_code() != GTID_LIST_EVENT &&
+            ev->get_type_code() != BINLOG_CHECKPOINT_EVENT)
           rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
 
         DBUG_ASSERT(rli->last_master_timestamp >= 0);

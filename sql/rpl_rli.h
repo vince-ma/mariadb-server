@@ -258,6 +258,16 @@ public:
   */
   bool sql_thread_caught_up;
 
+  /*
+    When parallelism is enabled on the slave, this is used to track when the
+    last_master_timestamp should be updated when a transaction is read from
+    the relay log (i.e. as is done on a serial slave). This is needed to avoid
+    calculating Seconds_Behind_Master using events from the distant past when
+    a new event is processed, as can be the case if a master's workload is
+    infrequent.
+  */
+  uint32 last_master_timestamp_needs_update;
+
   void clear_until_condition();
   /**
     Reset the delay.
