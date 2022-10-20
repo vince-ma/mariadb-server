@@ -1,0 +1,136 @@
+include/master-slave.inc
+[connection master]
+connection master;
+call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+connection server_1;
+set @@session.gtid_domain_id= 1;
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
+call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+include/start_slave.inc
+#
+#    Test Case 1)
+# When a fresh slave receives its first event, Seconds_Behind_Master
+# should be calculated based on the timestamp of the new event, rather
+# than any internally created events, i.e. Format description, GTID
+# list, etc
+# Create a time gap between the generated binlog events and the first
+# real transaction to ensure that Seconds_Behind_Master is calculated
+# only using transaction timestamps
+connection master;
+# Create an event which will take time to complete on the slave
+create table t1 select sleep(3) as a;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+# Tagging timestamp that trx finishes on the master
+connection slave;
+# Waiting for slave to start executing the transaction so we request SBM
+# while slave thread is working..
+# The first event should not consider the timestamp of the
+# non-transactional events at the start of a binary log when calculating
+# Seconds_Behind_Master
+# The calculation for Seconds_Behind_Master should use the timestamp
+# of the first event's commit
+#
+#    Test Case 2)
+# When a slave receives an event after being idle, e.g. in the case of
+# infrequent transactions occurring on the master, the calculation for
+# Seconds_Behind_Master should be compared against the commit time of
+# the new event on the master
+connection master;
+include/sync_slave_sql_with_master.inc
+connection slave;
+connection master;
+# Sleeping to create time gap between transactions
+insert into t1 (a) select sleep(3)+1;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+# Tag when trx 2 finishes on the master
+connection slave;
+# Waiting for slave to start executing the transaction..
+# Upon receiving a new event after idling, the Seconds_Behind_Master
+# calculation should not reflect a time before the new event
+# Upon receiving a new event after idling, the Seconds_Behind_Master
+# calculation should be based on the new event
+#
+#    Test Case 3)
+# If an idle slave receives multiple events, each long-running,
+# Seconds_Behind_Master should be calculated using the timestamp of only
+# the first event throughout its execution
+connection master;
+include/sync_slave_sql_with_master.inc
+connection slave;
+# Sleeping to create time gap between transactions
+# Create two queries that will run concurrently on the slave
+connection master;
+insert into t1 (a) select sleep(4)+2;
+connection server_1;
+set @@session.gtid_domain_id=1;
+create table t2 select sleep(4) as a;
+connection master;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+connection server_1;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+connection slave;
+# Waiting for slave to start executing both events..
+connection slave;
+connection slave;
+# Waiting for slave to commit the first event..
+# After idling, Seconds_Behind_Master should be calculated using only
+# the earliest executing transaction with multiple concurrent
+# transactions.
+# After executing the first transaction, Seconds_Behind_Master
+# should not be calculated using proceeding transactions until after
+# their execution
+#
+#    Test Case 4):
+# When a delayed slave receives an event after being idle, the
+# calculation for Seconds_Behind_Master should be compared against the
+# commit time of the event on the master and include the time that the
+# event was delayed
+connection master;
+include/sync_slave_sql_with_master.inc
+connection slave;
+include/stop_slave.inc
+# Note master_delay is compared using the event creation date, so 6
+# accounts for 3s from the statement, and 3s additional delay
+CHANGE MASTER TO master_delay=6;
+include/start_slave.inc
+connection master;
+include/sync_slave_sql_with_master.inc
+connection master;
+# Sleeping to create time gap between transactions
+# Tagging transaction start
+insert into t1 (a) select sleep(3)+3;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+# Tagging timestamp of transaction start
+connection slave;
+# Waiting for slave to delay the transaction..
+# Delayed, idle slave that is currently delaying events should calculate
+# Seconds_Behind_Master using the start time of the transaction on the
+# master
+connection slave;
+# Waiting for slave to start executing the transaction..
+# Delayed slave that has waited over the delay time should calculate
+# Seconds_Behind_Master using the commit time of the transaction on the
+# master
+# Reset master_delay
+connection master;
+include/sync_slave_sql_with_master.inc
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO master_delay=0;
+include/start_slave.inc
+#
+# Cleanup
+connection master;
+DROP TABLE t1, t2;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_sbm_parallel.test

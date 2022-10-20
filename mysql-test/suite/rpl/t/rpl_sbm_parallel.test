@@ -1,0 +1,335 @@
+#
+# Purpose:
+#   This test ensures that after a parallel slave has idled, i.e. executed
+# everything in its relay log, the next event group that the SQL thread reads
+# from the relay log will immediately be used in the Seconds_Behind_Master. In
+# particular, it ensures that the calculation for Seconds_Behind_Master is
+# based on the timestamp of the new transaction, rather than the last committed
+# transaction.
+#
+# Methodology:
+#   This test ensures that Seconds_Behind_Master is updated using the newest
+# event using four scenarios. First, it checks against a fresh slave to ensure
+# Seconds_Behind_Master isn't calculated using the internally generated events
+# at the start of a binlog. Second, it checks against a slave with infrequent
+# transactions to ensure that Seconds_Behind_Master is not calculated using the
+# timestamp of the slave's last committed transaction, but rather the new
+# event. Third, it checks concurrent transactions to ensure only the first
+# transaction after idling is used to calculate Seconds_Behind_Master, and not
+# proceeding transactions. The fourth check ensures that a delayed slave, i.e.
+# one set up with MASTER_DELAY, does not use previous events to calculate
+# Seconds_Behind_Master while delaying an event.
+#
+# References:
+#   MDEV-17516: Replication lag issue using parallel replication
+#   MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel
+#               Replicas
+#
+--source include/master-slave.inc
+
+# Statement format only because we want slave to replicate sleep commands
+--source include/have_binlog_format_statement.inc
+
+--connection master
+call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+--connection server_1
+set @@session.gtid_domain_id= 1;
+
+# This test uses GTIDs to verify correct slave state
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
+call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+--source include/start_slave.inc
+
+
+--echo #
+--echo #    Test Case 1)
+--echo # When a fresh slave receives its first event, Seconds_Behind_Master
+--echo # should be calculated based on the timestamp of the new event, rather
+--echo # than any internally created events, i.e. Format description, GTID
+--echo # list, etc
+
+--let $t_initial= `SELECT UNIX_TIMESTAMP()`
+--let $gsp_old= `SELECT @@global.gtid_slave_pos`
+
+--echo # Create a time gap between the generated binlog events and the first
+--echo # real transaction to ensure that Seconds_Behind_Master is calculated
+--echo # only using transaction timestamps
+--sleep 2
+
+--connection master
+--echo # Create an event which will take time to complete on the slave
+create table t1 select sleep(3) as a;
+
+--echo # Tagging timestamp that trx finishes on the master
+--let $tmc= `SELECT UNIX_TIMESTAMP()`
+
+--connection slave
+--echo # Waiting for slave to start executing the transaction so we request SBM
+--echo # while slave thread is working..
+--let $wait_condition=SELECT COUNT(*)=1 from information_schema.PROCESSLIST where COMMAND="Slave_worker" and STATE="User sleep"
+--source include/wait_condition.inc
+
+--let $time_slave_mid= `SELECT UNIX_TIMESTAMP()`
+--let $sbm_real= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $gsp= `SELECT @@global.gtid_slave_pos`
+
+# The Seconds_Behind_Master calculation we are targeting relies on the
+# current event actively being worked on rather than already committed
+if (`SELECT STRCMP('$gsp_old','$gsp') != 0`)
+{
+    --die Transaction commit before we could capture Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+--echo # The first event should not consider the timestamp of the
+--echo # non-transactional events at the start of a binary log when calculating
+--echo # Seconds_Behind_Master
+if (`SELECT $sbm_real >= ($time_slave_mid - $t_initial - 4)`)
+{
+    --die Slave should not have considered the timestamps of internal events for Seconds_Behind_Master calculation
+}
+
+--echo # The calculation for Seconds_Behind_Master should use the timestamp
+--echo # of the first event's commit
+--let $sbm_calc=`SELECT $time_slave_mid - $tmc`
+if (`SELECT $sbm_real <= ($sbm_calc - 2) OR $sbm_real >= ($sbm_calc + 2)`)
+{
+    --die Slave should have used the timestamp of the first event's commit for Seconds_Behind_Master calculation
+}
+
+
+--echo #
+--echo #    Test Case 2)
+--echo # When a slave receives an event after being idle, e.g. in the case of
+--echo # infrequent transactions occurring on the master, the calculation for
+--echo # Seconds_Behind_Master should be compared against the commit time of
+--echo # the new event on the master
+
+--connection master
+--source include/sync_slave_sql_with_master.inc
+--connection slave
+--let $gsp_old= `SELECT @@global.gtid_slave_pos`
+--connection master
+--echo # Sleeping to create time gap between transactions
+--sleep 2
+--let $tms= `SELECT UNIX_TIMESTAMP()`
+insert into t1 (a) select sleep(3)+1;
+
+--echo # Tag when trx 2 finishes on the master
+--let $tmc= `SELECT UNIX_TIMESTAMP()`
+
+--connection slave
+--echo # Waiting for slave to start executing the transaction..
+--let $wait_condition=SELECT COUNT(*)=1 from information_schema.PROCESSLIST where COMMAND="Slave_worker" and STATE="User sleep"
+--source include/wait_condition.inc
+
+--let $time_slave_mid= `SELECT UNIX_TIMESTAMP()`
+--let $sbm_real= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $gsp= `SELECT @@global.gtid_slave_pos`
+
+if (`SELECT STRCMP('$gsp_old','$gsp') != 0`)
+{
+    --die Transaction commit before we could capture Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+--echo # Upon receiving a new event after idling, the Seconds_Behind_Master
+--echo # calculation should not reflect a time before the new event
+if (`SELECT $sbm_real > $time_slave_mid - $tms`)
+{
+    --die Slave Seconds_Behind_Master should not reflect a time before the new event
+}
+
+--echo # Upon receiving a new event after idling, the Seconds_Behind_Master
+--echo # calculation should be based on the new event
+--let $sbm_calc=`SELECT $time_slave_mid - $tmc`
+if (`SELECT $sbm_real <= ($sbm_calc - 2) OR $sbm_real >= ($sbm_calc + 2)`)
+{
+    --die Slave Seconds_Behind_Master calculation should be based on the new event
+}
+
+
+--echo #
+--echo #    Test Case 3)
+--echo # If an idle slave receives multiple events, each long-running,
+--echo # Seconds_Behind_Master should be calculated using the timestamp of only
+--echo # the first event throughout its execution
+
+--connection master
+--source include/sync_slave_sql_with_master.inc
+
+--connection slave
+--let $gsp_old= `SELECT @@global.gtid_slave_pos`
+
+--echo # Sleeping to create time gap between transactions
+--sleep 2
+
+--echo # Create two queries that will run concurrently on the slave
+--connection master
+--send insert into t1 (a) select sleep(4)+2
+--connection server_1
+--sleep 2
+set @@session.gtid_domain_id=1;
+--send create table t2 select sleep(4) as a
+
+--connection master
+--reap
+--let $t1mc= `SELECT UNIX_TIMESTAMP()`
+
+--connection server_1
+--reap
+--let $t2mc= `SELECT UNIX_TIMESTAMP()`
+
+--connection slave
+--echo # Waiting for slave to start executing both events..
+--let $wait_condition=SELECT COUNT(*)=2 from information_schema.PROCESSLIST where COMMAND="Slave_worker" and STATE="User sleep"
+--source include/wait_condition.inc
+
+
+# Here all the coordination is done up front and cached, and afterwards the
+# results are validated
+
+--connection slave
+--let $time_slave_mid1= `SELECT UNIX_TIMESTAMP()`
+--let $sbm_real1= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $gsp1= `SELECT @@global.gtid_slave_pos`
+
+--connection slave
+--echo # Waiting for slave to commit the first event..
+--let $wait_condition=SELECT COUNT(*)=1 from information_schema.PROCESSLIST where COMMAND="Slave_worker" and STATE="User sleep"
+--source include/wait_condition.inc
+
+--let $time_slave_mid2= `SELECT UNIX_TIMESTAMP()`
+--let $sbm_real2= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $gsp2= `SELECT @@global.gtid_slave_pos`
+
+# Now validate results
+
+if (`SELECT STRCMP('$gsp_old','$gsp1') != 0`)
+{
+    --die Transaction commit before we could capture Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+if (`SELECT STRCMP('$gsp2','$gsp1') = 0`)
+{
+    --die Transaction commit before we could capture Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+--echo # After idling, Seconds_Behind_Master should be calculated using only
+--echo # the earliest executing transaction with multiple concurrent
+--echo # transactions.
+--let $sbm_calc=`SELECT $time_slave_mid1 - $t1mc`
+if (`SELECT $sbm_real1 <= ($sbm_calc - 2) OR $sbm_real1 >= ($sbm_calc + 2)`)
+{
+    --die Slave used wrong event for calculating Seconds_Behind_Master
+}
+
+--echo # After executing the first transaction, Seconds_Behind_Master
+--echo # should not be calculated using proceeding transactions until after
+--echo # their execution
+--let $sbm_calc=`SELECT $time_slave_mid2 - $t1mc`
+if (`SELECT $sbm_real2 <= ($sbm_calc - 2) OR $sbm_real2 >= ($sbm_calc + 2)`)
+{
+    --die Slave used wrong event for calculating Seconds_Behind_Master
+}
+
+
+--echo #
+--echo #    Test Case 4):
+--echo # When a delayed slave receives an event after being idle, the
+--echo # calculation for Seconds_Behind_Master should be compared against the
+--echo # commit time of the event on the master and include the time that the
+--echo # event was delayed
+
+--connection master
+--source include/sync_slave_sql_with_master.inc
+
+--connection slave
+--source include/stop_slave.inc
+--echo # Note master_delay is compared using the event creation date, so 6
+--echo # accounts for 3s from the statement, and 3s additional delay
+--eval CHANGE MASTER TO master_delay=6
+--source include/start_slave.inc
+--let $gsp_old= `SELECT @@global.gtid_slave_pos`
+
+--connection master
+--source include/sync_slave_sql_with_master.inc
+
+--connection master
+--echo # Sleeping to create time gap between transactions
+--sleep 2
+--echo # Tagging transaction start
+--let $tms= `SELECT UNIX_TIMESTAMP()`
+insert into t1 (a) select sleep(3)+3;
+--save_master_pos
+
+--echo # Tagging timestamp of transaction start
+--let $tmc= `SELECT UNIX_TIMESTAMP()`
+
+--connection slave
+--echo # Waiting for slave to delay the transaction..
+--let $wait_condition=SELECT COUNT(*)=1 from information_schema.PROCESSLIST where COMMAND="Slave_SQL" and STATE like "Waiting until MASTER_DELAY%"
+--source include/wait_condition.inc
+
+--let $time_slave_predelay= `SELECT UNIX_TIMESTAMP()`
+--let $sbm_real= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $gsp= `SELECT @@global.gtid_slave_pos`
+
+if (`SELECT STRCMP('$gsp_old','$gsp') != 0`)
+{
+    --die Transaction commit before we could capture Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+--echo # Delayed, idle slave that is currently delaying events should calculate
+--echo # Seconds_Behind_Master using the start time of the transaction on the
+--echo # master
+--let $sbm_calc=`SELECT $time_slave_predelay - $tms`
+if (`SELECT $sbm_real <= ($sbm_calc - 2) OR $sbm_real >= ($sbm_calc + 2)`)
+{
+    --die Delayed slave should update Seconds_Behind_Master while delaying a new event
+}
+
+--connection slave
+--echo # Waiting for slave to start executing the transaction..
+--let $wait_condition=SELECT COUNT(*)=1 from information_schema.PROCESSLIST where COMMAND="Slave_worker" and STATE="User sleep"
+--source include/wait_condition.inc
+
+--let $time_slave_postdelay= `SELECT UNIX_TIMESTAMP()`
+--let $sbm_real= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $gsp= `SELECT @@global.gtid_slave_pos`
+
+if (`SELECT STRCMP('$gsp_old','$gsp') != 0`)
+{
+    --die Transaction commit before we could capture Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+--echo # Delayed slave that has waited over the delay time should calculate
+--echo # Seconds_Behind_Master using the commit time of the transaction on the
+--echo # master
+--let $sbm_calc=`SELECT $time_slave_postdelay - $tmc`
+if (`SELECT $sbm_real <= ($sbm_calc - 2) OR $sbm_real >= ($sbm_calc + 2)`)
+{
+    --die Slave should update Seconds_Behind_Master while executing an event which was delayed
+}
+
+--echo # Reset master_delay
+--connection master
+--source include/sync_slave_sql_with_master.inc
+--connection slave
+--source include/stop_slave.inc
+--eval CHANGE MASTER TO master_delay=0
+--source include/start_slave.inc
+
+
+--echo #
+--echo # Cleanup
+--connection master
+DROP TABLE t1, t2;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+
+--echo # End of rpl_sbm_parallel.test
