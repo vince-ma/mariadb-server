@@ -1,0 +1,50 @@
+--source include/mysql_upgrade_preparation.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Beginning of 10.6 test
+--echo #
+--echo # MDEV-28915: mysql_upgrade fails due to old_mode="", with "Cannot load
+--echo # from mysql.proc. The table is probably corrupted"
+
+--echo # Show that tables are created with utf8mb3 even without UTF8_IS_UTF8MB3 (see the .opt file)
+
+SHOW CREATE TABLE mysql.proc;
+SHOW CREATE TABLE mysql.event;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+SHOW CREATE TABLE mysql.proc;
+SHOW CREATE TABLE mysql.event;
+
+--echo # Emulate that tables were created with utf8mb4 by an older version
+
+ALTER TABLE mysql.proc MODIFY db CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                       MODIFY name CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+                       MODIFY specific_name CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                       MODIFY definer VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                       MODIFY comment TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                       MODIFY character_set_client CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                       MODIFY collation_connection CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL,
+                       MODIFY db_collation CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL;
+
+ALTER TABLE mysql.event MODIFY db CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+                        MODIFY name CHAR(64) CHARACTER SET utf8mb4 NOT NULL DEFAULT '',
+                        MODIFY definer VARCHAR(384) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+                        MODIFY comment CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
+                        MODIFY character_set_client CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+                        MODIFY collation_connection CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+                        MODIFY db_collation CHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL;
+
+--echo # mysql_upgrade changes columns from utf8mb4 to utf8mb3
+
+--exec $MYSQL_UPGRADE --force 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+SHOW CREATE TABLE mysql.proc;
+SHOW CREATE TABLE mysql.event;
+
+--echo # end of 10.6 test
