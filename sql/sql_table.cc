@@ -10477,6 +10477,18 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   
   online= online && !table->s->tmp_table;
 
+  List<FOREIGN_KEY_INFO> fk_list;
+  table->file->get_foreign_key_list(thd, &fk_list);
+  for (auto &fk: fk_list)
+  {
+    if (fk.delete_method != FK_OPTION_NO_ACTION
+        || fk.update_method != FK_OPTION_NO_ACTION)
+    {
+      online= false;
+      break;
+    }
+  }
+
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
