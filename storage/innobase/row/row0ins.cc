@@ -2066,9 +2066,14 @@ row_ins_dupl_error_with_rec(
 /** @return true if history row was inserted by this transaction
            (row TRX_ID is the same as current TRX_ID). */
 static
-bool vers_row_same_trx(dict_index_t* index, const rec_t* rec, que_thr_t* thr)
+dberr_t vers_row_same_trx(dict_index_t* index, const rec_t* rec,
+                          que_thr_t* thr, bool *same_trx)
 {
   mtr_t mtr;
+  dberr_t ret= DB_SUCCESS;
+  ulint trx_id_len;
+  const byte *trx_id_bytes;
+  trx_id_t trx_id;
   dict_index_t *clust_index= dict_table_get_first_index(index->table);
   ut_ad(index != clust_index);
 
@@ -2088,8 +2093,8 @@ bool vers_row_same_trx(dict_index_t* index, const rec_t* rec, que_thr_t* thr)
                         clust_index->n_core_fields, ULINT_UNDEFINED, &heap);
     if (!clust_index->vers_history_row(clust_rec, clust_offs))
     {
-      mtr.commit();
-      return false;
+      *same_trx= false;
+      goto end;
     }
   }
   else
@@ -2097,22 +2102,24 @@ bool vers_row_same_trx(dict_index_t* index, const rec_t* rec, que_thr_t* thr)
     ib::error() << "foreign constraints: secondary index " << index->name <<
                    " of table " << index->table->name << " is out of sync";
     ut_ad("secondary index is out of sync" == 0);
-    mtr.commit();
-    return false;
+    ret= DB_TABLE_CORRUPT;
+    goto end;
   }
 
-  ulint trx_id_len;
-  const byte *trx_id_bytes= rec_get_nth_field(clust_rec, clust_offs,
-                                              clust_index->n_uniq, &trx_id_len);
+  trx_id_bytes= rec_get_nth_field(clust_rec, clust_offs,
+                                  clust_index->n_uniq, &trx_id_len);
   ut_ad(trx_id_len == DATA_TRX_ID_LEN);
 
-  trx_id_t trx_id= trx_read_trx_id(trx_id_bytes);
+  trx_id= trx_read_trx_id(trx_id_bytes);
 
   if (UNIV_LIKELY_NULL(heap))
     mem_heap_free(heap);
 
+  *same_trx= thr_get_trx(thr)->id == trx_id;
+
+end:
   mtr.commit();
-  return thr_get_trx(thr)->id == trx_id;
+  return ret;
 }
 
 /***************************************************************//**
@@ -2138,6 +2145,8 @@ row_ins_scan_sec_index_for_duplicate(
 	ulint		n_fields_cmp;
 	btr_pcur_t	pcur;
 	dberr_t		err		= DB_SUCCESS;
+	dberr_t		err2;
+	bool		same_trx;
 	ulint		allow_duplicates;
 	rec_offs	offsets_[REC_OFFS_SEC_INDEX_SIZE];
 	rec_offs*	offsets		= offsets_;
@@ -2236,11 +2245,18 @@ row_ins_scan_sec_index_for_duplicate(
 
 				thr_get_trx(thr)->error_info = index;
 
-				if (index->table->versioned()
-					&& vers_row_same_trx(index, rec, thr)) {
+				if (index->table->versioned()) {
+					err2 = vers_row_same_trx(index, rec,
+								 thr, &same_trx);
+					if (err2 != DB_SUCCESS) {
+						err = err2;
+						goto end_scan;
+					}
 
-					err = DB_FOREIGN_DUPLICATE_KEY;
-					goto end_scan;
+					if (same_trx) {
+						err = DB_FOREIGN_DUPLICATE_KEY;
+						goto end_scan;
+					}
 				}
 
 				/* If the duplicate is on hidden FTS_DOC_ID,

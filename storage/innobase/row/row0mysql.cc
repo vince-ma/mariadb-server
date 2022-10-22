@@ -1666,7 +1666,7 @@ row_fts_update_or_delete(
 	ut_a(dict_table_has_fts_index(prebuilt->table));
 
 	/* Deletes are simple; get them out of the way first. */
-	if (node->is_delete == PLAIN_DELETE) {
+	if (node->is_delete) {
 		/* A delete affects all FTS indexes, so we pass NULL */
 		fts_trx_add_op(trx, table, old_doc_id, FTS_DELETE, NULL);
 	} else {
