@@ -7,7 +7,7 @@ if ($have_debug)
 {
   set @dbug_tables= @@global.debug_dbug;
 }
-if ($MTR_COMBINATION_VERS_STOPWORD)
+if ($MTR_COMBINATION_VERS_SW)
 {
   set @dbug_stopword= '+d,sysvers_force,sysvers_hide';
   if (!$have_debug)
