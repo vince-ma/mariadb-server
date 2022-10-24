@@ -78,6 +78,7 @@
 --connection server_1
 set @sav_binlog_format = @@binlog_format;
 set @@binlog_format = row;
+set @@global.binlog_format = row;
 --let $trx_statements= N
 
 --let $xa_completion_action= COMMIT
@@ -88,6 +89,7 @@ set @@binlog_format = row;
 
 --connection server_1
 set @@binlog_format = @sav_binlog_format;
+set @@global.binlog_format = @sav_binlog_format;
 
 
 --echo #
@@ -110,6 +112,7 @@ set @@binlog_format = @sav_binlog_format;
 --connection server_1
 set @sav_binlog_format = @@binlog_format;
 set @@binlog_format = row;
+set @@global.binlog_format = row;
 --let $trx_statements= T,N
 
 --let $xa_completion_action= COMMIT
@@ -120,6 +123,7 @@ set @@binlog_format = row;
 
 --connection server_1
 set @@binlog_format = @sav_binlog_format;
+set @@global.binlog_format = @sav_binlog_format;
 
 
 --echo #
@@ -130,6 +134,7 @@ set @@binlog_format = @sav_binlog_format;
 --connection server_1
 set @sav_binlog_format = @@binlog_format;
 set @@binlog_format = row;
+set @@global.binlog_format = row;
 --let $trx_statements= N,T
 
 --let $xa_completion_action= COMMIT
@@ -140,6 +145,7 @@ set @@binlog_format = row;
 
 --connection server_1
 set @@binlog_format = @sav_binlog_format;
+set @@global.binlog_format = @sav_binlog_format;
 
 --echo #
 --echo # Test Case 7: An XA transaction consisting of two failed
@@ -148,6 +154,7 @@ set @@binlog_format = @sav_binlog_format;
 --connection server_1
 set @sav_binlog_format = @@binlog_format;
 set @@binlog_format = row;
+set @@global.binlog_format = row;
 --let $trx_statements= N,N
 
 --let $xa_completion_action= COMMIT
@@ -158,6 +165,7 @@ set @@binlog_format = row;
 
 --connection server_1
 set @@binlog_format = @sav_binlog_format;
+set @@global.binlog_format = @sav_binlog_format;
 
 #
 # Cleanup
