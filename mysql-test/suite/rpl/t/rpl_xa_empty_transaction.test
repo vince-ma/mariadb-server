@@ -73,6 +73,11 @@
 --echo #
 --echo # Test Case 3: An XA transaction with a statement that cannot be rolled
 --echo # back should be binlogged
+
+# TODO: remove work-around MDEV-24654 when fixed.
+--connection server_1
+set @sav_binlog_format = @@binlog_format;
+set @@binlog_format = row;
 --let $trx_statements= N
 
 --let $xa_completion_action= COMMIT
@@ -80,6 +85,9 @@
 
 --let $xa_completion_action= ROLLBACK
 --source include/rpl_xa_empty_transaction.inc
+
+--connection server_1
+set @@binlog_format = @sav_binlog_format;
 
 
 --echo #
@@ -98,6 +106,10 @@
 --echo # Test Case 5: A mixed XA transaction consisting of one statement that
 --echo # can successfully be rolled back (first statement), and another that
 --echo # can not (second statement) should be binlogged
+
+--connection server_1
+set @sav_binlog_format = @@binlog_format;
+set @@binlog_format = row;
 --let $trx_statements= T,N
 
 --let $xa_completion_action= COMMIT
@@ -106,11 +118,18 @@
 --let $xa_completion_action= ROLLBACK
 --source include/rpl_xa_empty_transaction.inc
 
+--connection server_1
+set @@binlog_format = @sav_binlog_format;
+
 
 --echo #
 --echo # Test Case 6: A mixed XA transaction consisting of one statement that
 --echo # cannot successfully be rolled back (first statement), and another that
 --echo # can (second statement) should be binlogged
+
+--connection server_1
+set @sav_binlog_format = @@binlog_format;
+set @@binlog_format = row;
 --let $trx_statements= N,T
 
 --let $xa_completion_action= COMMIT
@@ -119,10 +138,16 @@
 --let $xa_completion_action= ROLLBACK
 --source include/rpl_xa_empty_transaction.inc
 
+--connection server_1
+set @@binlog_format = @sav_binlog_format;
 
 --echo #
 --echo # Test Case 7: An XA transaction consisting of two failed
 --echo # non-transactional statements should be binlogged
+
+--connection server_1
+set @sav_binlog_format = @@binlog_format;
+set @@binlog_format = row;
 --let $trx_statements= N,N
 
 --let $xa_completion_action= COMMIT
@@ -130,6 +155,9 @@
 
 --let $xa_completion_action= ROLLBACK
 --source include/rpl_xa_empty_transaction.inc
+
+--connection server_1
+set @@binlog_format = @sav_binlog_format;
 
 #
 # Cleanup
