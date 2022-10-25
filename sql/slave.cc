@@ -4089,7 +4089,7 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
 static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                                 rpl_group_info *serial_rgi)
 {
-  ulonglong event_size, last_wait_cnt= rli->wait_cnt;
+  ulonglong event_size;
   DBUG_ENTER("exec_relay_log_event");
 
   /*
@@ -4120,11 +4120,34 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       the scope of an entire event group, because Seconds_Behind_Master
       should reflect the timestamp that the transaction finished.
     */
-    if (rli->wait_cnt == 0)
-      rli->wait_cnt++; // slave restart is also a wait
-    if (rli->mi->using_parallel() && rli->wait_cnt > last_wait_cnt &&
-        ev->get_type_code() == GTID_EVENT)
-      rli->last_master_timestamp_needs_update= true;
+    if (rli->mi->using_parallel() && ev->get_type_code() == GTID_EVENT)
+    {
+      if (rli->wait_cnt == 0)
+        rli->wait_cnt++; // slave restart is also a wait
+
+      /*
+        A potential compromise so we only check workers_idle if we know we have
+        already reached EOF?
+      */
+      //if (rli->wait_cnt > rli->last_wait_cnt && rli->parallel.workers_idle())
+
+      if (rli->wait_cnt > rli->last_wait_cnt)
+      {
+        rli->last_master_timestamp_needs_update= true;
+
+        /*
+          Track that we will be updating last_master_timestamp for each event
+          in this event group. Then the next GTID which comes around (if relay
+          did not reach EOF) will unset last_master_timestamp_needs_update
+          so later events do not update last_master_timestamp before the commit
+        */
+        rli->last_wait_cnt= rli->wait_cnt;
+      }
+      else
+      {
+        rli->last_master_timestamp_needs_update= false;
+      }
+    }
 
     /*
       Even if we don't execute this event, we keep the master timestamp,
@@ -4145,8 +4168,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
       DBUG_ASSERT(rli->last_master_timestamp >= 0);
-
-      rli->last_master_timestamp_needs_update= false;
     }
 
     /*
@@ -5253,6 +5274,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   rli->clear_error();
   rli->parallel.reset();
   rli->wait_cnt= 0;
+  rli->last_wait_cnt= 0;
 
   //tell the I/O thread to take relay_log_space_limit into account from now on
   rli->ignore_log_space_limit= 0;
@@ -7729,6 +7751,16 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         mysql_mutex_unlock(&rli->log_space_lock);
         // Note that wait_for_update_relay_log unlocks lock_log !
         rli->relay_log.wait_for_update_relay_log(rli->sql_driver_thd);
+
+        /*
+          Incrementing wait_cnt here (in the SQL driver thread) doesn't account
+          for potentially long-running transactions. I.e., when a long running
+          trx comes in, the sql thread will increment wait_cnt before the trx
+          finishes. Then, the next transaction that comes in (while trx 1 is
+          still running) will update SBM on read (rather than commit), behaving
+          like a serial slave. Test case 3 of rpl_sbm_parallel fails from this
+          because SBM is 0 when it should have a larger value
+        */
         rli->wait_cnt++;
         // re-acquire data lock since we released it earlier
         mysql_mutex_lock(&rli->data_lock);

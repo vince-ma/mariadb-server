@@ -268,6 +268,7 @@ public:
   */
   uint32 last_master_timestamp_needs_update;
   ulonglong wait_cnt;
+  ulonglong last_wait_cnt;
 
   void clear_until_condition();
   /**
