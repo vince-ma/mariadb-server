@@ -41,6 +41,7 @@ CREATE TABLE ti (a INT PRIMARY KEY) engine=innodb;
 
 if ($use_disconnect)
 {
+    --source include/count_sessions.inc
     --connect(con1,localhost,root,,)
 }
 
@@ -74,8 +75,7 @@ if ($use_disconnect)
 {
     --disconnect con1
     --connection server_1
-    --let $wait_condition=SELECT COUNT(*)=0 from information_schema.PROCESSLIST where COMMAND="Killed"
-    --source include/wait_condition.inc
+    --source include/wait_until_count_sessions.inc
     XA RECOVER;
 
     --error ER_XA_RBROLLBACK
