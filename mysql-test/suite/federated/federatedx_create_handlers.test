@@ -1,5 +1,6 @@
 --source have_federatedx.inc
 --source include/federated.inc
+--source include/have_partition.inc
 
 connection default;
 
@@ -438,14 +439,55 @@ EXPLAIN (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2)
 (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2) UNION ALL
   (SELECT * FROM federated.t1 UNION SELECT * FROM federated.t2);
 
-DROP TABLES federated.t1, federated.t2, t3, t4;
-
-connection slave;
-DROP TABLE federated.t1, federated.t2;
+DROP TABLES t3, t4;
 
 connection default;
+
+--echo # MDEV-29640 FederatedX does not properly handle pushdown
+--echo #             in case of difference in local and remote table names
+--echo #
+connection master;
+--echo # Use tables from the previous test. Make sure pushdown works:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM federated.t2;
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+
+--echo # Link remote table `federated.t1` with the local table named `t1_local`
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1_local ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+--echo # No pushdown here due to table names mismatch, retrieve data as usual:
+EXPLAIN SELECT COUNT(DISTINCT a) FROM federated.t1_local;
+SELECT COUNT(DISTINCT a) FROM federated.t1_local;
+
+
+--echo #
+--echo # MDEV-29863 Server crashes in federatedx_txn::acquire after select from
+--echo #            the Federated table with partitions and federated_pushdown=1
+--echo #            in case of difference in local and remote table names
+--echo #
+connection slave;
+CREATE TABLE federated.t3 (a INT);
+INSERT INTO federated.t3 VALUES (1),(2),(3);
+CREATE TABLE federated.t4 (a INT);
+
+connection master;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval CREATE SERVER fedlink FOREIGN DATA WRAPPER mysql 
+  OPTIONS (USER 'root', HOST '127.0.0.1', DATABASE 'federated',
+  PORT $SLAVE_MYPORT);
+
+CREATE TABLE federated.t3 (a INT)
+  ENGINE=FEDERATED
+  CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t3'
+  PARTITION BY list (a)
+  (PARTITION p1 VALUES IN (1) CONNECTION='fedlink/t3',
+   PARTITION p2 VALUES IN (2) CONNECTION='fedlink/t4');
+
+EXPLAIN SELECT * FROM federated.t3;
+SELECT * FROM federated.t3;
 
 set global federated_pushdown=0;
 
 source include/federated_cleanup.inc;
-
