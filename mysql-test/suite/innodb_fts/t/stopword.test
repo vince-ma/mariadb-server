@@ -1,12 +1,14 @@
 # This is the basic function tests for innodb FTS
 
 -- source include/have_innodb.inc
+-- let $modify_create_table= 1
 -- source include/maybe_versioning.inc
 
 SET @innodb_ft_server_stopword_table_orig=@@innodb_ft_server_stopword_table;
 SET @innodb_ft_enable_stopword_orig=@@innodb_ft_enable_stopword;
 SET @innodb_ft_user_stopword_table_orig=@@innodb_ft_user_stopword_table;
 
+let $stopword_table= articles;
 let $stopword_stage= create_table;
 --source stopword.inc
 
@@ -17,12 +19,12 @@ SELECT * FROM articles WHERE MATCH (title,body)
 # Nothing inserted into the default stopword, so essentially
 # nothing get screened. The new stopword could only be
 # effective for table created thereafter
-CREATE TABLE articles_2 (
+eval CREATE TABLE articles_2 (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
         FULLTEXT (title,body)
-        ) ENGINE=InnoDB;
+        )$create_options ENGINE=InnoDB;
 
 INSERT INTO articles_2 (title, body)
         VALUES ('test for stopwords','this is it...');
@@ -38,12 +40,12 @@ delete from user_stopword;
 insert into user_stopword values("this");
 
 # Ok, let's repeat with the new table again.
-CREATE TABLE articles_3 (
+eval CREATE TABLE articles_3 (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
         FULLTEXT (title,body)
-        ) ENGINE=InnoDB;
+        )$create_options ENGINE=InnoDB;
 
 INSERT INTO articles_3 (title, body)
         VALUES ('test for stopwords','this is it...');
@@ -53,19 +55,7 @@ SELECT * FROM articles_3 WHERE MATCH (title,body)
         AGAINST ('this' IN NATURAL LANGUAGE MODE);
 
 # Test session level stopword control "innodb_user_stopword_table"
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_stopword;
-  --enable_query_log
-}
-create table user_stopword_session(value varchar(30)) engine = innodb;
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_tables;
-  --enable_query_log
-}
+eval create table user_stopword_session(value varchar(30))$create_options engine = innodb;
 
 insert into user_stopword values("this");
 delete from user_stopword;
@@ -73,12 +63,12 @@ insert into user_stopword_session values("session");
 
 set session innodb_ft_user_stopword_table="test/user_stopword_session";
 
-CREATE TABLE articles_4 (
+eval CREATE TABLE articles_4 (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
         FULLTEXT (title,body)
-        ) ENGINE=InnoDB;
+        )$create_options ENGINE=InnoDB;
 
 INSERT INTO articles_4 (title, body)
         VALUES ('test for session stopwords','this should also be excluded...');
@@ -92,12 +82,12 @@ SELECT * FROM articles_4 WHERE MATCH (title,body)
         AGAINST ('this' IN NATURAL LANGUAGE MODE);
 
 --connect (con1,localhost,root,,)
-CREATE TABLE articles_5 (
+eval CREATE TABLE articles_5 (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
         FULLTEXT (title,body)
-        ) ENGINE=InnoDB;
+        )$create_options ENGINE=InnoDB;
 
 INSERT INTO articles_5 (title, body)
         VALUES ('test for session stopwords','this should also be excluded...');
@@ -131,12 +121,12 @@ SET GLOBAL innodb_ft_server_stopword_table=default;
 # the settings.
 
 # Create FTS table
-CREATE TABLE articles (
+eval CREATE TABLE articles (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
         FULLTEXT `idx` (title,body)
-        ) ENGINE=InnoDB;
+        )$create_options ENGINE=InnoDB;
 
 SHOW CREATE TABLE articles;
 
@@ -270,12 +260,12 @@ SET GLOBAL innodb_ft_user_stopword_table=@innodb_ft_user_stopword_table_orig;
 SET SESSION innodb_ft_user_stopword_table=default;
 
 # Create FTS table
-CREATE TABLE articles (
+eval CREATE TABLE articles (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
         FULLTEXT `idx` (title,body)
-        ) ENGINE=InnoDB;
+        )$create_options ENGINE=InnoDB;
 
 # Insert six rows
 INSERT INTO articles (title,body) VALUES
@@ -290,23 +280,11 @@ INSERT INTO articles (title,body) VALUES
 SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN MODE);
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
 # Define a correct formated user stopword table
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_stopword;
-  --enable_query_log
-}
-create table user_stopword(value varchar(30)) engine = innodb;
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_tables;
-  --enable_query_log
-}
+eval create table user_stopword(value varchar(30))$create_options engine = innodb;
 # The set operation should be successful
 set session innodb_ft_user_stopword_table = "test/user_stopword";
 # Define a correct formated server stopword table
-create table server_stopword(value varchar(30)) engine = innodb;
+eval create table server_stopword(value varchar(30))$create_options engine = innodb;
 # The set operation should be successful
 set global innodb_ft_server_stopword_table = "test/server_stopword";
 # Add values into user supplied stop word table
@@ -382,12 +360,12 @@ SET SESSION innodb_ft_user_stopword_table=default;
 
 #---------------------------------------------------------------------------------------
 # Create FTS table
-CREATE TABLE articles (
+eval CREATE TABLE articles (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
         FULLTEXT `idx` (title,body)
-        ) ENGINE=InnoDB;
+        )$create_options ENGINE=InnoDB;
 
 SHOW CREATE TABLE articles;
 
@@ -404,19 +382,7 @@ INSERT INTO articles (title,body) VALUES
 SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN MODE);
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
 # Define a correct formated user stopword table
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_stopword;
-  --enable_query_log
-}
-create table user_stopword(value varchar(30)) engine = innodb;
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_tables;
-  --enable_query_log
-}
+eval create table user_stopword(value varchar(30))$create_options engine = innodb;
 # The set operation should be successful
 set session innodb_ft_user_stopword_table = "test/user_stopword";
 insert into user_stopword values("mysqld"),("DBMS");
@@ -438,7 +404,7 @@ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('mysqld');
 # set user stopword list empty
 set session innodb_ft_user_stopword_table = default;
 # Define a correct formated user stopword table
-create table server_stopword(value varchar(30)) engine = innodb;
+eval create table server_stopword(value varchar(30))$create_options engine = innodb;
 # The set operation should be successful
 set global innodb_ft_server_stopword_table = "test/server_stopword";
 insert into server_stopword values("root"),("properly");
@@ -491,12 +457,12 @@ SET SESSION innodb_ft_user_stopword_table=default;
 # FTS stopword list test - check varaibles across sessions
 
 # Create FTS table
-CREATE TABLE articles (
+eval CREATE TABLE articles (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
         FULLTEXT `idx` (title,body)
-        ) ENGINE=InnoDB;
+        )$create_options ENGINE=InnoDB;
 
 SHOW CREATE TABLE articles;
 
@@ -577,19 +543,7 @@ SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('"the will"@11' IN BOOL
 --connection con1
 SET SESSION innodb_ft_enable_stopword = 1;
 # Define a correct formated user stopword table
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_stopword;
-  --enable_query_log
-}
-create table user_stopword(value varchar(30)) engine = innodb;
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_tables;
-  --enable_query_log
-}
+eval create table user_stopword(value varchar(30))$create_options engine = innodb;
 # The set operation should be successful
 set session innodb_ft_user_stopword_table = "test/user_stopword";
 # Add values into user supplied stop word table
@@ -609,19 +563,7 @@ SELECT * FROM articles WHERE MATCH(title,body) AGAINST("+show +will" IN BOOLEAN 
 SELECT * FROM articles WHERE MATCH (title,body) AGAINST ('will');
 select @@innodb_ft_user_stopword_table;
 # Define a correct formated user stopword table
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_stopword;
-  --enable_query_log
-}
-create table user_stopword_1(value varchar(30)) engine = innodb;
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_tables;
-  --enable_query_log
-}
+eval create table user_stopword_1(value varchar(30))$create_options engine = innodb;
 # The set operation should be successful
 set session innodb_ft_user_stopword_table = "test/user_stopword_1";
 insert into user_stopword_1 values("when");
@@ -643,7 +585,7 @@ SET SESSION innodb_ft_user_stopword_table=default;
 select @@innodb_ft_user_stopword_table;
 select @@innodb_ft_server_stopword_table;
 # Define a correct formated server stopword table
-create table server_stopword(value varchar(30)) engine = innodb;
+eval create table server_stopword(value varchar(30))$create_options engine = innodb;
 # The set operation should be successful
 SET GLOBAL innodb_ft_server_stopword_table = "test/server_stopword";
 select @@innodb_ft_server_stopword_table;

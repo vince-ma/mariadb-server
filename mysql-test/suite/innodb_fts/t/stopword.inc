@@ -1,29 +1,12 @@
 if ($stopword_stage == create_table)
 {
---disable_query_log
-set @dbug_stopword= '';
-let $have_debug= `select version() like '%debug%'`;
-if ($have_debug)
-{
-  set @dbug_tables= @@global.debug_dbug;
-}
-if ($MTR_COMBINATION_VERS_SW)
-{
-  set @dbug_stopword= '+d,sysvers_force,sysvers_hide';
-  if (!$have_debug)
-  {
-    --skip Requires debug
-  }
-}
---enable_query_log
-
 call mtr.add_suppression("\\[ERROR\\] InnoDB: user stopword table not_defined does not exist.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: user stopword table test/user_stopword_session does not exist.");
 
 select * from information_schema.innodb_ft_default_stopword;
 
 # Create FTS table
-eval CREATE TABLE articles (
+eval CREATE TABLE $stopword_table (
         id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
         title VARCHAR(200),
         body TEXT,
@@ -31,7 +14,7 @@ eval CREATE TABLE articles (
         )$create_options ENGINE=InnoDB;
 
 # Insert six rows
-INSERT INTO articles (title,body) VALUES
+eval INSERT INTO $stopword_table (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...')  ,
         ('How To Use MySQL Well','After you went through a ...'),
         ('Optimizing MySQL','In this tutorial we will show ...'),
@@ -40,7 +23,7 @@ INSERT INTO articles (title,body) VALUES
         ('MySQL Security','When configured properly, MySQL ...');
 
 # "the" is in the default stopword, it would not be selected
-SELECT * FROM articles WHERE MATCH (title,body)
+eval SELECT * FROM $stopword_table WHERE MATCH (title,body)
         AGAINST ('the' IN NATURAL LANGUAGE MODE);
 
 # Provide user defined stopword table, if not (correctly) defined,
@@ -50,35 +33,23 @@ set global innodb_ft_server_stopword_table = "not_defined";
 set global innodb_ft_server_stopword_table = NULL;
 
 # Define a correct formated user stopword table
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_stopword;
-  --enable_query_log
-}
-create table user_stopword(value varchar(30)) engine = innodb;
-if ($have_debug)
-{
-  --disable_query_log
-  set debug_dbug= @dbug_tables;
-  --enable_query_log
-}
+eval create table user_stopword(value varchar(30))$create_options engine = innodb;
 
 # The set operation should be successful
 set global innodb_ft_server_stopword_table = "test/user_stopword";
 
-drop index title on articles;
+eval drop index title on $stopword_table;
 
-create fulltext index idx on articles(title, body);
+eval create fulltext index idx on $stopword_table(title, body);
 }
 
 if ($stopword_stage == select_1)
 {
 --error 0, ER_INDEX_CORRUPT
-SELECT * FROM articles WHERE MATCH (title,body)
+eval SELECT * FROM $stopword_table WHERE MATCH (title,body)
         AGAINST ('the' IN NATURAL LANGUAGE MODE);
 --error 0, ER_INDEX_CORRUPT
-SELECT * FROM articles WHERE MATCH (title,body)
+eval SELECT * FROM $stopword_table WHERE MATCH (title,body)
         AGAINST ('this' IN NATURAL LANGUAGE MODE);
 
 }

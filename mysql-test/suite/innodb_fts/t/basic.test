@@ -1,6 +1,7 @@
 # This is the basic function tests for innodb FTS
 
 -- source include/have_innodb.inc
+--let $modify_create_table= 1
 -- source include/maybe_versioning.inc
 
 let $basic_stage= create_table;

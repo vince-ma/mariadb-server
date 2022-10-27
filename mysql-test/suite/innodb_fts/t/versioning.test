@@ -1,5 +1,5 @@
 --source include/have_innodb.inc
---source include/not_windows.inc
+--source include/have_gzip.inc
 --source include/not_embedded.inc
 
 # Combinations
@@ -24,28 +24,11 @@ if ($MTR_COMBINATION_PREPARE)
 }
 
 --let $server_id= `select @@server_id`
---let $tmpdir= /tmp/mtr.$server_id.innodb_fts.data
 --let $datadir= `select @@datadir`
---let $make_archive= 0
---let $extract_archive= 0
---let $tar_ext= tgz
-# an option from tar --help|grep "filter the archive"
---let $tar_compression= z
+--let $std_dir= $MYSQL_TEST_DIR/std_data/versioning
 
-if ($MTR_COMBINATION_PREPARE)
-{
-  if (!$MTR_COMBINATION_VERS_SW)
-  {
-    --let $make_archive= 1
-  }
-}
-if ($MTR_COMBINATION_UPGRADE)
-{
-  --let $extract_archive= 1
-}
-
---echo # Upgrade test 1
---let $archive= std_data/versioning/fts.01.$tar_ext
+--echo # Upgrade test
+let $stopword_table= articles2;
 
 if ($MTR_COMBINATION_PREPARE)
 {
@@ -54,33 +37,64 @@ if ($MTR_COMBINATION_PREPARE)
 
   let $create_options= with system versioning;
   let $basic_stage= create_table;
-  source basic.inc;
+  --source basic.inc
   let $basic_stage= insert_1;
-  source basic.inc;
-  --source vers_archive.inc
+  --source basic.inc
+  let $basic_stage= insert_2;
+  --source basic.inc
+  let $basic_stage= insert_3;
+  --source basic.inc
+  let $stopword_stage= create_table;
+  --source stopword.inc
+  eval insert into $stopword_table (title, body)
+  values ('test for stopwords','this is it...');
+  insert into user_stopword values("the");
+  delete from user_stopword;
+  insert into user_stopword values("this");
+  --source include/shutdown_mysqld.inc
+
+  --exec mkdir -p $std_dir
+  --exec cp -af $datadir/ibdata1 $datadir/test/*.frm $std_dir
+  --exec gzip -9 $std_dir/ibdata1 $std_dir/*.frm
 }
 
---source vers_extract.inc
+if ($MTR_COMBINATION_UPGRADE)
+{
+  --source include/shutdown_mysqld.inc
+  --exec rm -f $datadir/test/*.ibd $datadir/ib*
+  --exec cp -af $std_dir/ibdata1.gz $datadir
+  --exec cp -af $std_dir/*.frm.gz $datadir/test
+  --exec gzip -df $datadir/ibdata1.gz $datadir/test/*.frm.gz
+}
+let $restart_bindir=;
+--source include/start_mysqld.inc
 
-#select @@global.innodb_file_per_table;
-#--exit
 --error ER_INDEX_CORRUPT
 SELECT * FROM articles WHERE MATCH (title,body)
 AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 
-call mtr.add_suppression("test/articles contains 3 indexes inside InnoDB");
+call mtr.add_suppression("test/articles.? contains 3 indexes inside InnoDB");
 alter table articles force;
 flush tables;
 show create table articles;
 
 let $basic_stage= select_1;
 source basic.inc;
+let $basic_stage= select_2;
+source basic.inc;
+let $basic_stage= select_3;
+source basic.inc;
 
---let $archive= std_data/versioning/fts.02.$tar_ext
+set global innodb_ft_server_stopword_table= "test/user_stopword";
+let $stopword_stage= select_1;
+--source stopword.inc
+eval drop index idx on $stopword_table;
+eval create fulltext index idx on $stopword_table(title, body);
+--source stopword.inc
 
 if ($MTR_COMBINATION_PREPARE)
 {
-  --echo # Downgrade test 1
+  --echo # Downgrade test
   let $restart_bindir= $OLD_BINDIR;
   --source include/restart_mysqld.inc
 
@@ -89,106 +103,17 @@ if ($MTR_COMBINATION_PREPARE)
   show create table articles;
   let $basic_stage= select_1;
   source basic.inc;
-
-  let $basic_stage= insert_2;
-  --disable_query_log
-  --source basic.inc
-  --enable_query_log
-
-  --source vers_archive.inc
-}
-
---echo # Upgrade test 2
-
---source vers_extract.inc
---let $archive= std_data/versioning/fts.03.$tar_ext
-
-alter table articles force;
-let $basic_stage= select_2;
-source basic.inc;
-
-if ($MTR_COMBINATION_PREPARE)
-{
-  --echo # Downgrade test 2
-  let $restart_bindir= $OLD_BINDIR;
-  --source include/restart_mysqld.inc
-
-  alter table articles force;
   let $basic_stage= select_2;
   source basic.inc;
-
-  let $basic_stage= insert_3;
-  --disable_query_log
-  --source basic.inc
-  --enable_query_log
-
-  --source vers_archive.inc
-}
-
---echo # Upgrade test 3
-
-let $make_archive= 1;
-let $sw_ext=;
-if ($MTR_COMBINATION_VERS_SW)
-{
-  let $sw_ext=.vers_sw;
-}
-
---source vers_extract.inc
---let $archive= std_data/versioning/fts.04$sw_ext.$tar_ext
-
-alter table articles force;
-let $basic_stage= select_3;
-source basic.inc;
-
-if ($MTR_COMBINATION_PREPARE)
-{
-  --echo # Downgrade test 3
-  let $restart_bindir= $OLD_BINDIR;
-  --source include/restart_mysqld.inc
-
-  alter table articles force;
   let $basic_stage= select_3;
   source basic.inc;
-
-  --disable_query_log
-  drop table articles;
-  let $stopword_stage= create_table;
-  --source stopword.inc
-  insert into articles (title, body)
-  values ('test for stopwords','this is it...');
-  insert into user_stopword values("the");
-  delete from user_stopword;
-  insert into user_stopword values("this");
-  --enable_query_log
-
-  --source vers_archive.inc
-}
-
---echo # Upgrade test 4 (stopword)
-
---source vers_extract.inc
-
-set global innodb_ft_server_stopword_table= "test/user_stopword";
-let $stopword_stage= select_1;
---source stopword.inc
-drop index idx on articles;
-create fulltext index idx on articles(title, body);
---source stopword.inc
-
-if ($MTR_COMBINATION_PREPARE)
-{
-  --echo # Downgrade test 4 (stopword)
-
-  let $restart_bindir= $OLD_BINDIR;
-  --source include/restart_mysqld.inc
 
   set global innodb_ft_server_stopword_table= "test/user_stopword";
   let $stopword_stage= select_1;
   # Downgrade faults with assertion "dict_index_get_n_unique(index) == 1"
   # until we rebuilt the index:
-  drop index idx on articles;
-  create fulltext index idx on articles(title, body);
+  eval drop index idx on $stopword_table;
+  eval create fulltext index idx on $stopword_table(title, body);
   source stopword.inc;
 
   let $restart_bindir=;
@@ -196,7 +121,5 @@ if ($MTR_COMBINATION_PREPARE)
 }
 
 --echo # Cleanup
-drop table articles;
-drop table user_stopword;
-
+eval drop tables articles, $stopword_table, user_stopword;
 set global innodb_ft_server_stopword_table= default;
