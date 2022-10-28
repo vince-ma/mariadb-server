@@ -84,11 +84,25 @@ DROP TABLE t;
 DROP VIEW v_processlist;
 
 let $outfile= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql;
+let $gtid_check_outfile= $MYSQLTEST_VARDIR/tmp/mysqlbinlog_gtid.sql;
 if (`SELECT @@global.log_bin`)
 {
   # Recording proper samples of binlogged prepared XA:s
   --source include/show_binlog_events.inc
   --exec $MYSQL_BINLOG -R --to-last-log master-bin.000001 > $outfile
+  --let $MYSQLD_DATADIR= `select @@datadir`
+  --exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $gtid_check_outfile
+
+  --echo prove all `trans` flagged GTID:s come from XA PREPARE
+  --let SEARCH_PATTERN= GTID [0-9]+-[0-9]+-[0-9]+ trans
+  --let SEARCH_FILE= $gtid_check_outfile
+  --source include/search_pattern_in_file.inc
+  --let SEARCH_PATTERN= XA PREPARE
+  --let SEARCH_FILE= $gtid_check_outfile
+  --source include/search_pattern_in_file.inc
+  --let SEARCH_PATTERN= XA (COMMIT|ROLLBACK)
+  --let SEARCH_FILE= $gtid_check_outfile
+  --source include/search_pattern_in_file.inc
 }
 
 --echo All transactions must be completed, to empty-list the following:
@@ -98,5 +112,6 @@ if (`SELECT @@global.log_bin`)
 {
   --exec $MYSQL test < $outfile
   --remove_file $outfile
+  --remove_file $gtid_check_outfile
   XA RECOVER;
 }

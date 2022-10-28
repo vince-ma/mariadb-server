@@ -3264,23 +3264,6 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
-  if (thd_arg->transaction->stmt.trans_did_wait() ||
-      thd_arg->transaction->all.trans_did_wait())
-    flags2|= FL_WAITED;
-  if (thd_arg->transaction->stmt.trans_did_ddl() ||
-      thd_arg->transaction->stmt.has_created_dropped_temp_table() ||
-      thd_arg->transaction->stmt.trans_executed_admin_cmd() ||
-      thd_arg->transaction->all.trans_did_ddl() ||
-      thd_arg->transaction->all.has_created_dropped_temp_table() ||
-      thd_arg->transaction->all.trans_executed_admin_cmd())
-    flags2|= FL_DDL;
-  else if (is_transactional && !is_tmp_table)
-    flags2|= FL_TRANSACTIONAL;
-  if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
-    flags2|= FL_ALLOW_PARALLEL;
-  /* Preserve any DDL or WAITED flag in the slave's binlog. */
-  if (thd_arg->rgi_slave)
-    flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
 
   XID_STATE &xid_state= thd->transaction->xid_state;
   if (is_transactional && xid_state.is_explicit_XA() &&
@@ -3294,6 +3277,24 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       FL_PREPARED_XA : FL_COMPLETED_XA;
     xid.set(xid_state.get_xid());
   }
+
+  if (thd_arg->transaction->stmt.trans_did_wait() ||
+      thd_arg->transaction->all.trans_did_wait())
+    flags2|= FL_WAITED;
+  if (thd_arg->transaction->stmt.trans_did_ddl() ||
+      thd_arg->transaction->stmt.has_created_dropped_temp_table() ||
+      thd_arg->transaction->stmt.trans_executed_admin_cmd() ||
+      thd_arg->transaction->all.trans_did_ddl() ||
+      thd_arg->transaction->all.has_created_dropped_temp_table() ||
+      thd_arg->transaction->all.trans_executed_admin_cmd())
+    flags2|= FL_DDL;
+  else if (is_transactional && !is_tmp_table && !(flags2 & FL_COMPLETED_XA))
+    flags2|= FL_TRANSACTIONAL;
+  if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
+    flags2|= FL_ALLOW_PARALLEL;
+  /* Preserve any DDL or WAITED flag in the slave's binlog. */
+  if (thd_arg->rgi_slave)
+    flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
 }
 
 
