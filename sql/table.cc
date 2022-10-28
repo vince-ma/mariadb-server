@@ -1056,6 +1056,25 @@ static void mysql57_calculate_null_position(TABLE_SHARE *share,
   }
 }
 
+
+static Item_func_hash *make_unique_hash_func(THD *thd,
+                                             MEM_ROOT *mem_root,
+                                             ulong ver,
+                                             List<Item> *field_list)
+{
+  if (ver < 100427 ||
+      (ver >= 100500 && ver < 100518) ||
+      (ver >= 100600 && ver < 100611) ||
+      (ver >= 100700 && ver < 100707) ||
+      (ver >= 100800 && ver < 100806) ||
+      (ver >= 100900 && ver < 100904) ||
+      (ver >= 101000 && ver < 101002) ||
+      (ver >= 101100 && ver < 101101))
+    return new (mem_root) Item_func_hash_mariadb_100403(thd, *field_list);
+  return new (mem_root) Item_func_hash(thd, *field_list);
+}
+
+
 /** Parse TABLE_SHARE::vcol_defs
 
   unpack_vcol_info_from_frm
@@ -1267,7 +1286,11 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
           list_item= new (mem_root) Item_field(thd, keypart->field);
         field_list->push_back(list_item, mem_root);
       }
-      Item_func_hash *hash_item= new(mem_root)Item_func_hash(thd, *field_list);
+
+      Item_func_hash *hash_item= make_unique_hash_func(thd, mem_root,
+                                                       table->s->mysql_version,
+                                                       field_list);
+
       Virtual_column_info *v= new (mem_root) Virtual_column_info();
       field->vcol_info= v;
       field->vcol_info->expr= hash_item;
