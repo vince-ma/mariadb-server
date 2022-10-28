@@ -30,4 +30,3 @@ versioning_trx_id : MDEV-18590: galera.versioning_trx_id: Test failure: mysqltes
 galera_bf_abort_at_after_statement : Unstable
 galera.MW-284 : MDEV-29861: Galera test case hangs
 galera.galera_binlog_checksum : MDEV-29861: Galera test case hangs
-galera_var_notify_ssl_ipv6 : MDEV-29861: Galera test case hangs
