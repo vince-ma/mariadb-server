@@ -43,7 +43,7 @@ SET GLOBAL LOG_WARNINGS=2;
 
 --connection slave
 --source include/stop_slave.inc
-CHANGE MASTER TO MASTER_USE_GTID=current_pos;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
 
 --connection master
