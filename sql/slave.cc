@@ -4125,7 +4125,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       the user might be surprised to see a claim that the slave is up to date
       long before those queued events are actually executed.
      */
-    if (!rli->mi->using_parallel() &&
+    if ((!rli->mi->using_parallel() || rli->get_sql_delay())  &&
         !(ev->is_artificial_event() || ev->is_relay_log_event() || (ev->when == 0)))
     {
       rli->last_master_timestamp= ev->when + (time_t) ev->exec_time;
