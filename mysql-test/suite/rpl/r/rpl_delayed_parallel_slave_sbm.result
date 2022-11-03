@@ -1,0 +1,71 @@
+include/master-slave.inc
+[connection master]
+connection master;
+call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+create table t1 (a int) engine=innodb;
+create table t2 (a int) engine=innodb;
+include/sync_slave_sql_with_master.inc
+connection server_1;
+# Set up another connection to master with intent for its transactions
+# to run concurrently on slave
+set @@session.gtid_domain_id= 1;
+connection slave;
+include/stop_slave.inc
+call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+change master to master_delay=10, master_use_gtid=Slave_Pos;
+include/start_slave.inc
+#
+# Part 1) Ensure Seconds_Behind_Master updates immediately when
+# SQL_Thread receives transaction
+connection slave;
+connection master;
+insert into t1 (a) select sleep(8)+1 as a;;
+connection server_1;
+# sleeping to create a gap between concurrent events for analyzing Seconds_Behind_Master
+insert into t2 (a) select sleep(8)+2 as a;;
+connection master;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+include/save_master_gtid.inc
+connection slave;
+# Waiting for slave to delay the first transaction..
+# Validating Seconds_Behind_Master == SQL_Delay - SQL_Remaining_Delay..
+# ..success
+#
+# Part 2) Validate Seconds_Behind_Master grows beyond SQL_Delay for
+# active transactions
+connection slave;
+# Waiting for slave to begin executing the first transaction..
+# Sleeping 1 to allow Seconds_Behind_Master to increase..
+# Validating Seconds_Behind_Master increased beyond MASTER_DELAY..
+# ..success
+#
+# Part 3) Validate Seconds_Behind_Master updates with concurrent
+# transactions
+connection slave;
+# Ensuring Slave_SQL has still not received second transaction yet..
+# Waiting for slave to delay the second transaction..
+# Validating Seconds_Behind_Master == SQL_Delay - SQL_Remaining_Delay..
+# ..success
+connection server_1;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+#
+# Cleanup
+connection server_1;
+set @@session.gtid_domain_id= 0;
+connection slave;
+# Reset master_delay
+include/stop_slave.inc
+CHANGE MASTER TO master_delay=0, master_use_gtid=No;
+include/start_slave.inc
+connection master;
+DROP TABLE t1,t2;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/rpl_end.inc
+# End of rpl_delayed_parallel_slave_sbm.test

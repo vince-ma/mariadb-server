@@ -1,0 +1,220 @@
+#
+#   This test ensures that a delayed, parallel replica updates
+# Seconds_Behind_Master using the convention established for serial replicas.
+# Where a non-delayed, parallel replica will update Seconds_Behind_Master at
+# transaction commit time; this strategy can reflect very large values for
+# delayed slaves, especially for infrequent events. In particular, these large
+# values are due to the calculation including both the value for master_delay
+# and the potentially long gap since the previous commit.
+#
+# Note: Despite using the same programmatic structure for a serial replica, a
+# key difference in the Seconds_Behind_Master behavior on a delayed, parallel
+# replica is that the value will be reflective of the transactions queued to
+# be executed, rather than actively executing. Effectively, this means the
+# value will seem more recent than the true state of the replica for both long
+# running transactions and workers with long queues. This will be fixed after
+# MDEV-17516.
+#
+# References:
+#   MDEV-29639: Seconds_Behind_Master is incorrect for Delayed, Parallel
+#               Replicas
+#
+--source include/master-slave.inc
+--source include/have_innodb.inc
+
+# Statement format only because we want slave to replicate sleep commands
+--source include/have_binlog_format_statement.inc
+
+--connection master
+call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+create table t1 (a int) engine=innodb;
+create table t2 (a int) engine=innodb;
+--source include/sync_slave_sql_with_master.inc
+
+--connection server_1
+--echo # Set up another connection to master with intent for its transactions
+--echo # to run concurrently on slave
+--let $old_gtid_domain= `SELECT @@session.gtid_domain_id`
+set @@session.gtid_domain_id= 1;
+
+--connection slave
+--source include/stop_slave.inc
+call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+--let $master_delay= 10
+# This test uses GTIDs to verify correct slave state
+--eval change master to master_delay=$master_delay, master_use_gtid=Slave_Pos
+--source include/start_slave.inc
+
+--echo #
+--echo # Part 1) Ensure Seconds_Behind_Master updates immediately when
+--echo # SQL_Thread receives transaction
+
+--connection slave
+--let $gsp_old= `SELECT @@global.gtid_slave_pos`
+
+--connection master
+--send insert into t1 (a) select sleep(8)+1 as a;
+--connection server_1
+--echo # sleeping to create a gap between concurrent events for analyzing Seconds_Behind_Master
+--sleep 6
+--send insert into t2 (a) select sleep(8)+2 as a;
+--connection master
+--reap
+--source include/save_master_gtid.inc
+
+--connection slave
+--echo # Waiting for slave to delay the first transaction..
+--let $wait_condition=SELECT COUNT(*)=1 from information_schema.PROCESSLIST where COMMAND="Slave_SQL" and STATE like "Waiting until MASTER_DELAY%"
+--source include/wait_condition.inc
+
+--let $sbm_real= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $remaining_delay= query_get_value(SHOW SLAVE STATUS, SQL_Remaining_Delay, 1)
+--let $gsp= `SELECT @@global.gtid_slave_pos`
+
+--let $n_executing_trxs=`SELECT COUNT(*) from information_schema.PROCESSLIST where COMMAND="Slave_worker" and STATE="User sleep"`
+if (`SELECT $n_executing_trxs > 0`)
+{
+    --die No master transactions should have started executing
+}
+
+if (`SELECT STRCMP('$gsp_old','$gsp') != 0`)
+{
+    --die Transaction commit before capturing Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+
+#--echo # Validating Seconds_Behind_Master == SQL_Delay - SQL_Remaining_Delay..
+#if (`SELECT $sbm_real != $master_delay - $remaining_delay`)
+--let $delay_est= `SELECT ($sbm_real + $remaining_delay)`
+--echo # Validating Seconds_Behind_Master == SQL_Delay - SQL_Remaining_Delay..
+# One second of leeway just in case
+if (`SELECT $delay_est < ($master_delay - 1) OR ($master_delay + 1) < $delay_est`)
+{
+    --echo # SBM: $sbm_real
+    --echo # SQL_Delay: $master_delay
+    --echo # SQL_Remaining_Delay: $remaining_delay
+    --die Seconds_Behind_Master should be SQL_Delay - SQL_Remaining_Delay after delaying a new transaction (from idle state)
+}
+--echo # ..success
+
+
+--echo #
+--echo # Part 2) Validate Seconds_Behind_Master grows beyond SQL_Delay for
+--echo # active transactions
+
+--connection slave
+--echo # Waiting for slave to begin executing the first transaction..
+--let $wait_condition=SELECT COUNT(*)=1 from information_schema.PROCESSLIST where COMMAND="Slave_worker" and STATE="User sleep"
+--source include/wait_condition.inc
+
+--echo # Sleeping 1 to allow Seconds_Behind_Master to increase..
+--sleep 1
+
+--let $sbm_real= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $gsp1= `SELECT @@global.gtid_slave_pos`
+
+--let $n_waiting_trxs=`SELECT COUNT(*) from information_schema.PROCESSLIST where COMMAND="Slave_SQL" and STATE like "Waiting until MASTER_DELAY%"`
+if (`SELECT $n_waiting_trxs > 0`)
+{
+    --die The second transaction should not yet have been seen by replica
+}
+
+if (`SELECT STRCMP('$gsp_old','$gsp1') != 0`)
+{
+    --die Transaction 1 commit before capturing Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+--echo # Validating Seconds_Behind_Master increased beyond MASTER_DELAY..
+if (`SELECT $sbm_real <= $master_delay`)
+{
+    --echo # SBM: $sbm_real
+    --echo # master_delay: $master_delay
+    --die Seconds_Behind_Master should increase normally while the last transaction is still executing
+}
+--echo # ..success
+
+
+--echo #
+--echo # Part 3) Validate Seconds_Behind_Master updates with concurrent
+--echo # transactions
+
+--connection slave
+--echo # Ensuring Slave_SQL has still not received second transaction yet..
+--let $idle_driver=`SELECT COUNT(*) from information_schema.PROCESSLIST where COMMAND="Slave_SQL" and STATE like "Slave has read all relay log%"`
+if (`SELECT $idle_driver = 0`)
+{
+    --die The second transaction should not yet have been seen by replica
+}
+--let $gsp2= `SELECT @@global.gtid_slave_pos`
+if (`SELECT STRCMP('$gsp_old','$gsp2') != 0`)
+{
+    --echo # GSP $gsp2
+    --die Transaction 2 commit before capturing Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+--echo # Waiting for slave to delay the second transaction..
+--let $wait_condition=SELECT COUNT(*)=1 from information_schema.PROCESSLIST where COMMAND="Slave_SQL" and STATE like "Waiting until MASTER_DELAY%"
+--source include/wait_condition.inc
+
+--let $sbm_real= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+--let $remaining_delay= query_get_value(SHOW SLAVE STATUS, SQL_Remaining_Delay, 1)
+--let $gsp2= `SELECT @@global.gtid_slave_pos`
+
+--let $n_executing_trxs=`SELECT COUNT(*) from information_schema.PROCESSLIST where COMMAND="Slave_worker" and STATE="User sleep"`
+if (`SELECT $n_executing_trxs != 1`)
+{
+    --die Only the first transaction should be executing
+}
+
+if (`SELECT STRCMP('$gsp_old','$gsp2') != 0`)
+{
+    --die Transaction 1 commit before capturing Seconds_Behind_Master. Machine was probably running too slow.
+}
+
+
+--let $delay_est= `SELECT ($sbm_real + $remaining_delay)`
+--echo # Validating Seconds_Behind_Master == SQL_Delay - SQL_Remaining_Delay..
+# One second of leeway just in case
+if (`SELECT $delay_est < ($master_delay - 1) OR ($master_delay + 1) < $delay_est`)
+{
+    --echo # SBM: $sbm_real
+    --echo # SQL_Delay: $master_delay
+    --echo # SQL_Remaining_Delay: $remaining_delay
+    --die Seconds_Behind_Master should be SQL_Delay - SQL_Remaining_Delay again after SQL_Thread receives the second transaction
+}
+--echo # ..success
+
+--connection server_1
+--reap
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--let $sbm_idle= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
+if (`SELECT $sbm_idle != 0`)
+{
+    --die Seconds_Behind_Master should be 0 after the replica catches up to the primary
+}
+
+--echo #
+--echo # Cleanup
+
+--connection server_1
+--eval set @@session.gtid_domain_id= $old_gtid_domain
+
+--connection slave
+--echo # Reset master_delay
+--source include/stop_slave.inc
+--eval CHANGE MASTER TO master_delay=0, master_use_gtid=No
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1,t2;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+
+--echo # End of rpl_delayed_parallel_slave_sbm.test
