@@ -7856,7 +7856,11 @@ bool setup_table_attributes(THD *thd, TABLE_LIST *table_list,
 {
   TABLE *table= table_list->table;
   if (table)
+  {
+    if (table->pos_in_table_list != NULL)
+      table_list->fk_ref_list= table->pos_in_table_list->fk_ref_list;
     table->pos_in_table_list= table_list;
+  }
   if (first_select_table && table_list->top_table() == first_select_table)
   {
     /* new counting for SELECT of INSERT ... SELECT command */
