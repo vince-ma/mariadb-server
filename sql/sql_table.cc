@@ -11545,7 +11545,6 @@ do_continue:;
                             HA_EXTRA_NOT_USED,
                             NULL);
   table_list->table= table= NULL;                  /* Safety */
-  thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
 
   DBUG_PRINT("info", ("is_table_renamed: %d  engine_changed: %d",
                       alter_ctx.is_table_renamed(), engine_changed));
