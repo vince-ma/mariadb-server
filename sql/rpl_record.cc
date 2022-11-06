@@ -23,6 +23,8 @@
 #include "rpl_utility.h"
 #include "rpl_rli.h"
 
+static int fill_extra_persistent_columns(TABLE *table, int master_cols);
+
 /**
    Pack a record of data for a table into a format suitable for
    transfer via the binary log.
@@ -490,7 +492,7 @@ int prepare_record(TABLE *const table, const uint skip, const bool check)
   @param master_cols   No of columns on master 
   @returns 0 on        success
  */
-int fill_extra_persistent_columns(TABLE *table, int master_cols)
+static int fill_extra_persistent_columns(TABLE *table, int master_cols)
 {
   int error= 0;
   Field **vfield_ptr, *vfield;
@@ -500,7 +502,8 @@ int fill_extra_persistent_columns(TABLE *table, int master_cols)
   for (vfield_ptr= table->vfield; *vfield_ptr; ++vfield_ptr)
   {
     vfield= *vfield_ptr;
-    if (vfield->field_index >= master_cols && vfield->stored_in_db())
+    if (vfield->field_index >= master_cols && (vfield->stored_in_db() ||
+               (vfield->flags & (PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG))))
     {
       bitmap_set_bit(table->write_set, vfield->field_index);
       error= vfield->vcol_info->expr->save_in_field(vfield,0);
