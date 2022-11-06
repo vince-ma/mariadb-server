@@ -9730,7 +9730,8 @@ LEX_CSTRING *fk_option_name(enum_fk_option opt)
 {
   static LEX_CSTRING names[]=
   {
-    { STRING_WITH_LEN("???") },
+    /* Unspecified FK option is the same as RESTRICT. */
+    { STRING_WITH_LEN("RESTRICT") },
     { STRING_WITH_LEN("RESTRICT") },
     { STRING_WITH_LEN("CASCADE") },
     { STRING_WITH_LEN("SET NULL") },
