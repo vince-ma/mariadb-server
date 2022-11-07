@@ -8236,6 +8236,8 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
           DBUG_ASSERT(ref_share);
         }
       }
+      else
+        ref_share= tables->table->s;
 
       if (ref_share)
       {
@@ -8243,12 +8245,12 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
           ref_key_name= k->name;
         else
         {
-          // FIXME: push warning
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_FK_NO_INDEX_PARENT,
+                              ER_THD(thd, ER_FK_NO_INDEX_PARENT),
+                              fk.foreign_table.str, fk.foreign_id.str,
+                              fk.referenced_table.str);
         }
-      }
-      else if (fk.self_ref())
-      {
-        // FIXME: test self_ref()
       }
 
       restore_record(table, s->default_values);

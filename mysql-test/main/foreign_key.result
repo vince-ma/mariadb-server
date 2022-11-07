@@ -120,6 +120,7 @@ DROP TABLE tpk;
 #
 # MDEV-16417 Store Foreign Key metadata outside of InnoDB
 #
+call mtr.add_suppression("has or is referenced in foreign key");
 set default_storage_engine= innodb;
 # Check create table
 create or replace table t1 (id int primary key);
@@ -560,6 +561,40 @@ ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
 alter table t2 drop index i1;
 alter table t2 drop primary key;
 alter table t2 drop index fk, drop foreign key fk;
+drop tables t2, t1;
+# Check no parent index, check printing referenced index
+create table t1 (id int primary key, b int unique) engine innodb;
+create table t2 (
+a int, b int, c int,
+index idx1 (b),
+foreign key fk (a) references t1 (id),
+foreign key fk2 (b) references t1 (b),
+foreign key self (c) references t2 (b)) engine innodb;
+alter table t1 drop primary key;
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+set foreign_key_checks= 0;
+alter table t1 drop primary key;
+set foreign_key_checks= 1;
+select constraint_name from information_schema.referential_constraints
+where constraint_schema is null;
+constraint_name
+select constraint_name, unique_constraint_name, table_name, referenced_table_name
+from information_schema.referential_constraints where constraint_schema = "test";
+constraint_name	unique_constraint_name	table_name	referenced_table_name
+fk	NULL	t2	t1
+fk2	b	t2	t1
+self	idx1	t2	t2
+Warnings:
+Warning	1822	Missing index for constraint 't2.fk' in the referenced table 't1'
+alter table t1 modify id char(1);
+ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+alter table t1 add index (id);
+alter table t1 modify id char(1);
+ERROR HY000: Cannot change column 'id': used in a foreign key constraint 'fk' of table 'test.t2'
+set foreign_key_checks= 0;
+alter table t1 drop index id;
+set foreign_key_checks= 1;
+alter table t2 drop foreign key fk, drop key fk;
 drop tables t2, t1;
 # Check self-references
 create or replace table t1 (id int primary key, id2 int references t1 (id));

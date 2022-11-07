@@ -7020,6 +7020,7 @@ static bool alter_partition_lock_handling(ALTER_PARTITION_PARAM_TYPE *lpt)
   }
   lpt->table= 0;
   lpt->table_list->table= 0;
+  lpt->alter_ctx->fk_table_backup.commit();
   if (thd->locked_tables_mode)
     return thd->locked_tables_list.reopen_tables(thd, false);
 
