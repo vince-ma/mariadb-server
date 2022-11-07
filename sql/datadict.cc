@@ -481,8 +481,8 @@ frm_err:
     return 10;
   }
 
-  const size_t extra2_increase= extra2.store_size() - extra2.read_size; // FIXME: can be negative
-  frm_size+= extra2_increase;
+  const longlong extra2_delta= extra2.store_size() - extra2.read_size;
+  frm_size+= extra2_delta;
 
   if (frm_size > FRM_MAX_SIZE)
   {
@@ -505,7 +505,7 @@ frm_err:
     return 10;
   }
 
-  forminfo_off+= extra2_increase;
+  forminfo_off+= extra2_delta;
   int4store(pos, forminfo_off);
   pos+= 4;
   int2store(frm_dst + 4, extra2.write_size);
