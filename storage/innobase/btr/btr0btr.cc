@@ -758,6 +758,8 @@ btr_page_get_father_node_ptr_func(
 	}
 
 	const rec_t* node_ptr = btr_cur_get_rec(cursor);
+	ut_ad(!btr_cur_get_block(cursor)->page.lock.not_recursive()
+	      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 
 	offsets = rec_get_offsets(node_ptr, index, offsets, 0,
 				  ULINT_UNDEFINED, &heap);
@@ -2375,6 +2377,9 @@ btr_insert_on_non_leaf_level(
 						  BTR_CONT_MODIFY_TREE,
 						  &cursor, mtr);
 	ut_ad(cursor.flag == BTR_CUR_BINARY);
+	ut_ad(!btr_cur_get_block(&cursor)->page.lock.not_recursive()
+	      || index->is_spatial()
+	      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 
 	if (UNIV_LIKELY(err == DB_SUCCESS)) {
 		err = btr_cur_optimistic_insert(flags,
@@ -2479,10 +2484,14 @@ btr_attach_half_pages(
 	if (prev_page_no != FIL_NULL && direction == FSP_DOWN) {
 		prev_block = btr_block_get(*index, prev_page_no, RW_X_LATCH,
 					   !level, mtr);
+		ut_ad(!prev_block->page.lock.not_recursive()
+		      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	}
 	if (next_page_no != FIL_NULL && direction != FSP_DOWN) {
 		next_block = btr_block_get(*index, next_page_no, RW_X_LATCH,
 					   !level, mtr);
+		ut_ad(!next_block->page.lock.not_recursive()
+		      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	}
 
 	/* Build the node pointer (= node key and page address) for the upper
@@ -3290,6 +3299,8 @@ dberr_t btr_level_list_remove(const buf_block_t& block,
 		if (UNIV_UNLIKELY(!prev_block)) {
 			return err;
 		}
+		ut_ad(!prev_block->page.lock.not_recursive()
+		      || mtr->memo_contains(index.lock, MTR_MEMO_X_LOCK));
 		if (UNIV_UNLIKELY(memcmp_aligned<4>(prev_block->page.frame
 						    + FIL_PAGE_NEXT,
 						    page + FIL_PAGE_OFFSET,
@@ -3307,6 +3318,8 @@ dberr_t btr_level_list_remove(const buf_block_t& block,
 		if (UNIV_UNLIKELY(!next_block)) {
 			return err;
 		}
+		ut_ad(!next_block->page.lock.not_recursive()
+		      || mtr->memo_contains(index.lock, MTR_MEMO_X_LOCK));
 		if (UNIV_UNLIKELY(memcmp_aligned<4>(next_block->page.frame
 						    + FIL_PAGE_PREV,
 						    page + FIL_PAGE_OFFSET,
@@ -3606,6 +3619,8 @@ btr_compress(
 	} else {
 		offsets = btr_page_get_father_block(
 			NULL, heap, mtr, &father_cursor);
+		ut_ad(!father_cursor.page_cur.block->page.lock.not_recursive()
+		      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	}
 
 	if (adjust) {
@@ -4229,6 +4244,8 @@ btr_discard_page(
 		return DB_CORRUPTION;
 	}
 
+	ut_ad(!merge_block->page.lock.not_recursive()
+	      || mtr->memo_contains(index->lock, MTR_MEMO_X_LOCK));
 	btr_search_drop_page_hash_index(block);
 
 	if (dict_index_is_spatial(index)) {
