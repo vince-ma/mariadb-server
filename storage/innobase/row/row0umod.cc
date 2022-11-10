@@ -514,7 +514,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 			mtr_s_lock_index(index, &mtr);
 		} else {
 			ut_ad(mode == BTR_PURGE_TREE);
-			mtr_sx_lock_index(index, &mtr);
+			mtr_x_lock_index(index, &mtr);
 		}
 	} else {
 		/* For secondary indexes,
