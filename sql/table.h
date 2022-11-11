@@ -1861,6 +1861,8 @@ typedef struct st_foreign_key_info
   List<LEX_CSTRING> foreign_fields;
   List<LEX_CSTRING> referenced_fields;
   TABLE_LIST *table_list;
+  bool operator ==(const char *id) const
+  { return my_strcasecmp(system_charset_info, id, foreign_id->str); }
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);

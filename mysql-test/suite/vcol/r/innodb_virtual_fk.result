@@ -33,3 +33,17 @@ ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fail
 drop view v1;
 drop table t2, t1;
 disconnect con2;
+# UPDATE is started, but FK is ADDed concurrently
+create table t1 (pk int primary key, a int, key(a)) engine=innodb;
+create table t2 (b int) engine=innodb;
+insert into t1 select *, 1 from seq_1_to_300;
+insert into t2 values (1);
+connect  con1,localhost,root,,test;
+update t1 set a = 6;
+connection default;
+set foreign_key_checks=off;
+alter table t2 add foreign key(b) references t1(a)
+on delete cascade on update cascade,
+algorithm=inplace, lock=none;
+connection con1;
+drop table t2, t1;

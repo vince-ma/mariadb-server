@@ -4497,7 +4497,7 @@ restart:
       tbl->reginfo.skip_locked= tables->skip_locked;
     }
 
-    if (tbl->file->referenced_by_foreign_key())
+    if (tbl->file->referenced_by_foreign_key() && tables->fk_ref_list)
     {
       DBUG_ASSERT(tbl->pos_in_table_list == tables);
       List<FOREIGN_KEY_INFO> fk_list;
