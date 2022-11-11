@@ -62,6 +62,10 @@
 /* Currently there are only 3 persistent statistical tables */
 static const uint STATISTICS_TABLES= 3;
 
+static
+int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables,
+                              TABLE_STATISTICS_CB *stats_cb);
+
 /* 
   The names of the statistical tables in this array must correspond the
   definitions of the tables in the file ../scripts/mysql_system_tables.sql
@@ -557,7 +561,7 @@ public:
     statistical data from the corresponding fields of stat_table.    
   */      
   
-  virtual void get_stat_values()= 0;
+  virtual void get_stat_values(Table_statistics *read_stats)= 0;
 
 
   /**
@@ -843,9 +847,8 @@ public:
     for 'table' accordingly.
   */    
 
-  void get_stat_values()
+  void get_stat_values(Table_statistics *read_stats)
   {
-    Table_statistics *read_stats= table_share->stats_cb->table_stats;
     read_stats->cardinality_is_null= TRUE;
     read_stats->cardinality= 0;
     if (find_stat())
@@ -1097,7 +1100,7 @@ public:
     'table_field'.
   */    
 
-  void get_stat_values()
+  void get_stat_values(Table_statistics *)
   {
     table_field->read_stats->set_all_nulls();
 
@@ -1386,7 +1389,7 @@ public:
     set to the value of the column.
   */    
 
-  void get_stat_values()
+    void get_stat_values(Table_statistics *)
   {
     double avg_frequency= 0;
     if(find_stat())
@@ -2007,11 +2010,11 @@ void create_min_max_statistical_fields_for_table(TABLE *table)
   Create fields for min/max values to read column statistics
 
   @param
-  thd          Thread handler
+  thd         Thread handler
   @param
-  table_share  Table share the fields are created for
+  table_share Table share the fields are created for
   @param
-  is_safe      TRUE <-> at any time only one thread can perform the function
+  stats_cb    TABLE_STATISTICS_CB object whose mem_root is used for allocations
 
   @details
   The function first allocates record buffers to store min/max values
@@ -2032,12 +2035,12 @@ void create_min_max_statistical_fields_for_table(TABLE *table)
   The same is true for the fields created for min/max values.  
 */      
 
-static
-void create_min_max_statistical_fields_for_table_share(THD *thd,
-                                                       TABLE_SHARE *table_share)
+static void
+create_min_max_statistical_fields_for_table_share(THD *thd,
+                                                  TABLE_SHARE *table_share,
+                                                  TABLE_STATISTICS_CB *stats_cb)
 {
-  TABLE_STATISTICS_CB *stats_cb= table_share->stats_cb;
-  Table_statistics *stats= stats_cb->table_stats; 
+  Table_statistics *stats= stats_cb->table_stats;
 
   if (stats->min_max_record_buffers)
     return;
@@ -2186,6 +2189,8 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   thd         Thread handler
   @param
   table_share Table share for which the memory for statistical data is allocated
+  @param
+  stats_cb    TABLE_STATISTICS_CB object for storing the statistical data
 
   @note
   The function allocates the memory for the statistical data on a table in the
@@ -2214,11 +2219,12 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   guarantee the correctness of the allocation.
 */      
 
-static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
+static int
+alloc_statistics_for_table_share(THD *thd, TABLE_SHARE *table_share,
+                                 TABLE_STATISTICS_CB *stats_cb)
 {
   Field **field_ptr;
   KEY *key_info, *end;
-  TABLE_STATISTICS_CB *stats_cb= table_share->stats_cb;
 
   DBUG_ENTER("alloc_statistics_for_table_share");
 
@@ -2252,7 +2258,8 @@ static int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share)
         (*field_ptr)->read_stats->min_value= NULL;
         (*field_ptr)->read_stats->max_value= NULL;
       }
-      create_min_max_statistical_fields_for_table_share(thd, table_share);
+      create_min_max_statistical_fields_for_table_share(thd, table_share,
+                                                        stats_cb);
     }
   }
 
@@ -2851,11 +2858,14 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   Read statistics for a table from the persistent statistical tables
 
   @param
-  thd         The thread handle
+  thd          The thread handle
   @param
-  table       The table to read statistics on
+  table        The table to read statistics on
   @param
-  stat_tables The array of TABLE_LIST objects for statistical tables
+  stat_tables  The array of TABLE_LIST objects for statistical tables
+  @param
+  force_reload Flag to require reloading the statistics from the tables
+               even if it has been already loaded
 
   @details
   For each statistical table the function looks for the rows from this
@@ -2880,7 +2890,8 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 */
 
 static
-int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
+int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables,
+                              bool force_reload)
 {
   uint i;
   TABLE *stat_table;
@@ -2893,10 +2904,22 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
   DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
 
-  if (!table_share->stats_cb->start_stats_load())
+  if (!force_reload && table_share->stats_cb->stats_are_ready())
+  {
+    /* Statistics has been already loaded, no need to read from stat tables */
+    DBUG_RETURN(0);
+  }
+
+  /*
+    Read data into a new TABLE_STATISTICS_CB object and replace
+    TABLE_SHARE::stats_cb with this new one once the reading is finished
+  */
+  std::shared_ptr<TABLE_STATISTICS_CB> new_stats_cb=
+      std::shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
+  if (!new_stats_cb->start_stats_load()) // OLEGS: do we need this, maybe can be removed?
     DBUG_RETURN(table_share->stats_cb->stats_are_ready() ? 0 : 1);
 
-  if (alloc_statistics_for_table_share(thd, table_share))
+  if (alloc_statistics_for_table_share(thd, table_share, new_stats_cb.get()))
   {
     table_share->stats_cb->abort_stats_load();
     DBUG_RETURN(1);
@@ -2906,11 +2929,11 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
 
   /* Read statistics from the statistical table table_stats */
-  Table_statistics *read_stats= table_share->stats_cb->table_stats;
+  Table_statistics *read_stats= new_stats_cb->table_stats;
   stat_table= stat_tables[TABLE_STAT].table;
   Table_stat table_stat(stat_table, table);
   table_stat.set_key_fields();
-  table_stat.get_stat_values();
+  table_stat.get_stat_values(read_stats);
    
   /* Read statistics from the statistical table column_stats */
   stat_table= stat_tables[COLUMN_STAT].table;
@@ -2920,10 +2943,10 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   {
     table_field= *field_ptr;
     column_stat.set_key_fields(table_field);
-    column_stat.get_stat_values();
+    column_stat.get_stat_values(nullptr);
     total_hist_size+= table_field->read_stats->histogram.get_size();
   }
-  table_share->stats_cb->total_hist_size= total_hist_size;
+  new_stats_cb->total_hist_size= total_hist_size;
 
   /* Read statistics from the statistical table index_stats */
   stat_table= stat_tables[INDEX_STAT].table;
@@ -2936,7 +2959,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     for (i= 0; i < key_parts; i++)
     {
       index_stat.set_key_fields(key_info, i+1);
-      index_stat.get_stat_values();
+      index_stat.get_stat_values(nullptr);
     }
    
     key_part_map ext_key_part_map= key_info->ext_key_part_map;
@@ -2984,8 +3007,13 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       }
     }
   }
+  if (thd->variables.optimizer_use_condition_selectivity > 3)
+    (void) read_histograms_for_table(thd, table, stat_tables,
+                                     new_stats_cb.get());
 
-  table_share->stats_cb->end_stats_load();
+  new_stats_cb->end_stats_load();
+  table_share->stats_cb= new_stats_cb;
+
   DBUG_RETURN(0);
 }
 
@@ -2997,10 +3025,11 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 
 void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
 {
-  TABLE_STATISTICS_CB *stats_cb= table_share->stats_cb;
+  TABLE_STATISTICS_CB *stats_cb= table_share->stats_cb.get();
   Table_statistics *table_stats= stats_cb->table_stats;
   if (!table_stats)
     return;
+
   Column_statistics *column_stats= table_stats->column_stats;
   if (!column_stats)
     return;
@@ -3033,38 +3062,40 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
   table       The table to read histograms for
   @param
   stat_tables The array of TABLE_LIST objects for statistical tables
+  @param
+  stats_cb    TABLE_STATISTICS_CB object for storing the histogram data
 
   @details
   For the statistical table columns_stats the function looks for the rows
   from this table that contain statistical data on 'table'. If such rows
   are found the histograms from them are read into the memory allocated
   for histograms of 'table'. Later at the query processing these histogram
-  are supposed to be used by the optimizer. 
+  are supposed to be used by the optimizer.
   The parameter stat_tables should point to an array of TABLE_LIST
   objects for all statistical tables linked into a list. All statistical
-  tables are supposed to be opened.  
+  tables are supposed to be opened.
   The function is called by read_statistics_for_tables_if_needed().
 
   @retval
-  0         If data has been successfully read for the table  
+  0         If data has been successfully read for the table
   @retval
   1         Otherwise
 
   @note
   Objects of the helper Column_stat are employed read histogram
-  from the statistical table column_stats now.        
+  from the statistical table column_stats now.
 */
 
-static
-int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
+static int read_histograms_for_table(THD *thd, TABLE *table,
+                                     TABLE_LIST *stat_tables,
+                                     TABLE_STATISTICS_CB *stats_cb)
 {
-  TABLE_STATISTICS_CB *stats_cb= table->s->stats_cb;
   DBUG_ENTER("read_histograms_for_table");
 
   if (stats_cb->start_histograms_load())
   {
-    uchar *histogram= (uchar *) alloc_root(&stats_cb->mem_root,
-                                           stats_cb->total_hist_size);
+    uchar *histogram=
+        (uchar *) alloc_root(&stats_cb->mem_root, stats_cb->total_hist_size);
     if (!histogram)
     {
       stats_cb->abort_histograms_load();
@@ -3086,7 +3117,6 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     }
     stats_cb->end_histograms_load();
   }
-  table->histograms_are_read= true;
   DBUG_RETURN(0);
 }
 
@@ -3137,6 +3167,14 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 static void dump_stats_from_share_to_table(TABLE *table)
 {
   TABLE_SHARE *table_share= table->s;
+
+  /*
+    Make a copy of TABLE_SHARE::stats_cb shared pointer and store it in the
+    TABLE object. So another thread can reload the TABLE_SHARE statistics
+    without harming statements already being executed
+  */
+  table->stats_cb= table_share->stats_cb;
+
   KEY *key_info= table_share->key_info;
   KEY *key_info_end= key_info + table_share->keys;
   KEY *table_key_info= table->key_info;
@@ -3151,7 +3189,7 @@ static void dump_stats_from_share_to_table(TABLE *table)
 }
 
 
-int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
+int read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
 {
   TABLE_LIST stat_tables[STATISTICS_TABLES];
 
@@ -3171,12 +3209,10 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
     {
       if (table_share->table_category == TABLE_CATEGORY_USER)
       {
-        if (table_share->stats_cb->stats_are_ready())
+        if (!force_reload && table_share->stats_cb->stats_are_ready())
         {
           if (!tl->table->stats_is_read)
             dump_stats_from_share_to_table(tl->table);
-          tl->table->histograms_are_read=
-            table_share->stats_cb->histograms_are_ready();
           if (table_share->stats_cb->histograms_are_ready() ||
               thd->variables.optimizer_use_condition_selectivity <= 3)
             continue;
@@ -3210,15 +3246,14 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables)
         table_share->tmp_table == NO_TMP_TABLE &&
         table_share->table_category == TABLE_CATEGORY_USER)
     {
-      if (!tl->table->stats_is_read)
+      if (!tl->table->stats_is_read || force_reload)
       {
-        if (!read_statistics_for_table(thd, tl->table, stat_tables))
+        if (!read_statistics_for_table(thd, tl->table, stat_tables,
+                                       force_reload))
           dump_stats_from_share_to_table(tl->table);
         else
           continue;
       }
-      if (thd->variables.optimizer_use_condition_selectivity > 3)
-        (void) read_histograms_for_table(thd, tl->table, stat_tables);
     }
   }
 
@@ -3626,9 +3661,23 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
 void set_statistics_for_table(THD *thd, TABLE *table)
 {
   if (!table->s->stats_cb)
-    table->s->stats_cb= new TABLE_STATISTICS_CB;
+  {
+    /*
+      It's possible that stats_cb was not created due to lack of call of
+      alloc_table_share() which is normal for some specific tables like those
+      from INFORMATION_SCHEMA.
+    */
+    table->s->stats_cb=
+        std::shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
+  }
 
-  TABLE_STATISTICS_CB *stats_cb= table->s->stats_cb;
+  /*
+    Make a copy of TABLE_SHARE::stats_cb shared pointer so there is no
+    data race if another thread reloads the statistics while this function
+    is running
+  */
+  auto stats_cb= std::shared_ptr<TABLE_STATISTICS_CB>(table->s->stats_cb);
+
   Table_statistics *read_stats= stats_cb->table_stats;
   table->used_stat_records= 
     (!check_eits_preferred(thd) ||

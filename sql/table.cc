@@ -353,7 +353,8 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
         table_alias_charset->strnncoll(key, 6, "mysql", 6) == 0)
       share->not_usable_by_query_cache= 1;
 
-    share->stats_cb= new TABLE_STATISTICS_CB;
+    share->stats_cb=
+        std::shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
 
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_share,
@@ -464,8 +465,7 @@ void TABLE_SHARE::destroy()
   if (stats_cb)
   {
     delete_stat_values_for_table_share(this);
-    delete stats_cb;
-    stats_cb= NULL;
+    stats_cb.reset();
   }
 
   /* The mutexes are initialized only for shares that are part of the TDC */

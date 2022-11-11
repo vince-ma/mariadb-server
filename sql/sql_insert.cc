@@ -611,7 +611,11 @@ bool open_and_lock_for_insert_delayed(THD *thd, TABLE_LIST *table_list)
   table_list->mdl_request.ticket= NULL;
 
   if (error || table_list->table)
+  {
+    if (table_list->table)
+      table_list->table->destroy();
     DBUG_RETURN(error);
+  }
 #endif
   /*
     * This is embedded library and we don't have auxiliary
@@ -1144,6 +1148,7 @@ values_loop_end:
     {
       info.copied=values_list.elements;
       end_delayed_insert(thd);
+      table_list->table->destroy();
     }
   }
   else
@@ -1364,6 +1369,7 @@ abort:
       (*ptr)->free();
     if (table_list->table->expr_arena)
       table_list->table->expr_arena->free_items();
+    table_list->table->destroy();
   }
 #endif
   if (table != NULL)

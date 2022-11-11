@@ -36,6 +36,7 @@
 #include "sql_i_s.h"
 #include "sql_type.h"               /* vers_kind_t */
 #include "privilege.h"              /* privilege_t */
+#include <memory>
 
 /*
   Buffer for unix timestamp in microseconds:
@@ -761,7 +762,8 @@ struct TABLE_SHARE
   uint	*blob_field;			/* Index to blobs in Field arrray*/
   LEX_CUSTRING vcol_defs;              /* definitions of generated columns */
 
-  TABLE_STATISTICS_CB* stats_cb;
+  // OLEGS: STL throws exceptions, either catch them or write our own shared_ptr.
+  std::shared_ptr<TABLE_STATISTICS_CB> stats_cb;
 
   uchar	*default_values;		/* row with default values */
   LEX_CSTRING comment;			/* Comment about table */
@@ -1548,7 +1550,6 @@ public:
 #endif
   uint max_keys; /* Size of allocated key_info array. */
   bool stats_is_read;     /* Persistent statistics is read for the table */
-  bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
   /*
@@ -1566,7 +1567,13 @@ public:
   */
   Item *notnull_cond;
 
-  inline void reset() { bzero((void*)this, sizeof(*this)); }
+  std::shared_ptr<TABLE_STATISTICS_CB> stats_cb;
+
+  inline void reset()
+  {
+    stats_cb.reset();
+    bzero((void *) this, sizeof(*this));
+  }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list, uint skip) const;
@@ -1788,6 +1795,11 @@ public:
     return field[s->period.end_fieldno];
   }
 
+  /* Specific cleanup steps required during the TABLE destruction */
+  void destroy()
+  {
+    stats_cb.reset();
+  }
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
