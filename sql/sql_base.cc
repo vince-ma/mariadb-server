@@ -4496,6 +4496,23 @@ restart:
         tbl->reginfo.lock_type= tables->lock_type;
       tbl->reginfo.skip_locked= tables->skip_locked;
     }
+
+    if (tbl->file->referenced_by_foreign_key())
+    {
+      DBUG_ASSERT(tbl->pos_in_table_list == tables);
+      List<FOREIGN_KEY_INFO> fk_list;
+      tbl->file->get_parent_foreign_key_list(thd, &fk_list);
+      List_iterator<FOREIGN_KEY_INFO> fk_it(*tables->fk_ref_list);
+      for (const FOREIGN_KEY_INFO &fk: fk_list)
+      {
+        const FOREIGN_KEY_INFO *fk_in_table= fk_it++;
+        if (strcmp(fk.foreign_id->str, fk_in_table->foreign_id->str) != 0)
+        {
+          /* This FK was DROP-ed while prelocking. Remove it from the list. */
+          fk_it.remove();
+        }
+      }
+    }
 #ifdef WITH_WSREP
     /*
        At this point we have SE associated with table so we can check wsrep_mode
@@ -4725,6 +4742,7 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   }
 
   *need_prelocking= TRUE;
+  DEBUG_SYNC(thd, "prelocking_fk");
 
   List_iterator<FOREIGN_KEY_INFO> fk_list_it(*table_list->fk_ref_list);
   while ((fk= fk_list_it++))
