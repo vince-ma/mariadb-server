@@ -1197,6 +1197,16 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 	return rec_max_size;
 }
 
+TRANSACTIONAL_TARGET
+dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
+                               btr_latch_mode latch_mode, mtr_t *mtr,
+                               uint64_t autoinc)
+{
+  // TODO: implement this specially, or specialize further
+  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode, this, mtr,
+                                     autoinc);
+}
+
 /********************************************************************//**
 Searches an index tree and positions a tree cursor on a given level.
 NOTE: n_fields_cmp in tuple must be set so that it cannot be compared

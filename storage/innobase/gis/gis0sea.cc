@@ -550,9 +550,8 @@ rtr_pcur_open(
 		mtr->lock_upgrade(index->lock);
 	}
 
-	if (btr_cur_search_to_nth_level(0, tuple, PAGE_CUR_RTREE_LOCATE,
-                                        latch_mode,
-					btr_cursor, mtr) != DB_SUCCESS) {
+	if (btr_cursor->search_leaf(tuple, PAGE_CUR_RTREE_LOCATE, latch_mode,
+				    mtr) != DB_SUCCESS) {
 		return true;
 	}
 

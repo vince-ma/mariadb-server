@@ -3081,11 +3081,8 @@ row_log_apply_op_low(
 	record. The operation may already have been performed,
 	depending on when the row in the clustered index was
 	scanned. */
-	*error = btr_cur_search_to_nth_level(0, entry, PAGE_CUR_LE,
-					     has_index_lock
-					     ? BTR_MODIFY_TREE
-					     : BTR_MODIFY_LEAF,
-					     &cursor, &mtr);
+	*error = cursor.search_leaf(entry, PAGE_CUR_LE, has_index_lock
+				    ? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &mtr);
 	if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 		goto func_exit;
 	}
@@ -3135,9 +3132,9 @@ row_log_apply_op_low(
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
 				index->set_modified(mtr);
-				*error = btr_cur_search_to_nth_level(
-					0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, &mtr);
+				*error = cursor.search_leaf(entry, PAGE_CUR_LE,
+							    BTR_MODIFY_TREE,
+							    &mtr);
 				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 					goto func_exit;
 				}
@@ -3239,9 +3236,9 @@ insert_the_rec:
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
 				index->set_modified(mtr);
-				*error = btr_cur_search_to_nth_level(
-					0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, &mtr);
+				*error = cursor.search_leaf(entry, PAGE_CUR_LE,
+							    BTR_MODIFY_TREE,
+							    &mtr);
 				if (*error != DB_SUCCESS) {
 					break;
 				}

@@ -322,9 +322,7 @@ btr_pcur_open(
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
   cursor->trx_if_known= nullptr;
-  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode,
-                                     btr_pcur_get_btr_cur(cursor),
-                                     mtr, autoinc);
+  return cursor->btr_cur.search_leaf(tuple, mode, latch_mode, mtr, autoinc);
 }
 
 /** Opens an persistent cursor to an index tree without initializing the
@@ -348,10 +346,7 @@ dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple,
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
   cursor->trx_if_known= nullptr;
-
-  /* Search with the tree cursor */
-  return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode,
-                                     btr_pcur_get_btr_cur(cursor), mtr);
+  return cursor->btr_cur.search_leaf(tuple, mode, latch_mode, mtr);
 }
 
 /**************************************************************//**

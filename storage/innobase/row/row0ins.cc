@@ -2889,9 +2889,8 @@ row_ins_sec_index_entry_low(
 		rtr_init_rtr_info(&rtr_info, false, &cursor, index, false);
 		rtr_info_update_btr(&cursor, &rtr_info);
 
-		err = btr_cur_search_to_nth_level(0, entry,
-						  PAGE_CUR_RTREE_INSERT,
-						  search_mode, &cursor, &mtr);
+		err = cursor.search_leaf(entry, PAGE_CUR_RTREE_INSERT,
+					 search_mode, &mtr);
 
 		if (err == DB_SUCCESS && search_mode == BTR_MODIFY_LEAF
 		    && rtr_info.mbr_adj) {
@@ -2907,9 +2906,8 @@ row_ins_sec_index_entry_low(
 			} else {
 				index->set_modified(mtr);
 			}
-			err = btr_cur_search_to_nth_level(
-				0, entry, PAGE_CUR_RTREE_INSERT,
-				search_mode, &cursor, &mtr);
+			err = cursor.search_leaf(entry, PAGE_CUR_RTREE_INSERT,
+						 search_mode, &mtr);
 		}
 
 		DBUG_EXECUTE_IF(
@@ -2925,8 +2923,8 @@ row_ins_sec_index_entry_low(
 				   : BTR_INSERT));
 		}
 
-		err = btr_cur_search_to_nth_level(0, entry, PAGE_CUR_LE,
-						  search_mode, &cursor, &mtr);
+		err = cursor.search_leaf(entry, PAGE_CUR_LE, search_mode,
+					 &mtr);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -3002,12 +3000,11 @@ row_ins_sec_index_entry_low(
 		prevent any insertion of a duplicate by another
 		transaction. Let us now reposition the cursor and
 		continue the insertion (bypassing the change buffer). */
-		err = btr_cur_search_to_nth_level(
-			0, entry, PAGE_CUR_LE,
-			btr_latch_mode(search_mode
-				       & ~(BTR_INSERT
-					   | BTR_IGNORE_SEC_UNIQUE)),
-			&cursor, &mtr);
+		err = cursor.search_leaf(entry, PAGE_CUR_LE,
+					 btr_latch_mode
+					 (search_mode
+					  & ~(BTR_INSERT
+					      | BTR_IGNORE_SEC_UNIQUE)), &mtr);
 		if (err != DB_SUCCESS) {
 			goto func_exit;
 		}

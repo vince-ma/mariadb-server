@@ -150,9 +150,9 @@ public:
 					  false);
 			rtr_info_update_btr(&ins_cur, &rtr_info);
 
-			error = btr_cur_search_to_nth_level(
-				0, dtuple, PAGE_CUR_RTREE_INSERT,
-				BTR_MODIFY_LEAF, &ins_cur, &mtr);
+			error = ins_cur.search_leaf(dtuple,
+						    PAGE_CUR_RTREE_INSERT,
+						    BTR_MODIFY_LEAF, &mtr);
 
 			/* It need to update MBR in parent entry,
 			so change search mode to BTR_MODIFY_TREE */
@@ -164,10 +164,10 @@ public:
 				rtr_info_update_btr(&ins_cur, &rtr_info);
 				mtr.start();
 				index->set_modified(mtr);
-				error = btr_cur_search_to_nth_level(
-					0, dtuple,
+				error = ins_cur.search_leaf(
+					dtuple,
 					PAGE_CUR_RTREE_INSERT,
-					BTR_MODIFY_TREE, &ins_cur, &mtr);
+					BTR_MODIFY_TREE, &mtr);
 			}
 
 			if (error == DB_SUCCESS) {
@@ -189,11 +189,10 @@ public:
 						  &ins_cur, index, false);
 
 				rtr_info_update_btr(&ins_cur, &rtr_info);
-				error = btr_cur_search_to_nth_level(
-					0, dtuple,
+				error = ins_cur.search_leaf(
+					dtuple,
 					PAGE_CUR_RTREE_INSERT,
-					BTR_MODIFY_TREE,
-					&ins_cur, &mtr);
+					BTR_MODIFY_TREE, &mtr);
 
 				if (error == DB_SUCCESS) {
 					error = btr_cur_pessimistic_insert(
