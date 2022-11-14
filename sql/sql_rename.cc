@@ -248,6 +248,8 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
 struct rename_param
 {
   LEX_CSTRING old_alias, new_alias;
+  Table_name new_name;
+  TABLE_LIST *ren_table;
   LEX_CUSTRING old_version;
   handlerton *from_table_hton;
 };
@@ -322,6 +324,9 @@ check_rename(THD *thd, rename_param *param,
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
     DBUG_RETURN(1);                     // This can't be skipped
   }
+
+  param->new_name= {*new_db, *new_table_name};
+  param->ren_table= ren_table;
   DBUG_RETURN(0);
 }
 
@@ -349,21 +354,22 @@ check_rename(THD *thd, rename_param *param,
 
 static bool
 do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
-          TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
-	  // FIXME: move to rename_param
-          const LEX_CSTRING *new_table_name,
           bool skip_error, bool *force_if_exists,
           FK_rename_vector &fk_rename_backup)
 {
   int rc= 1;
   handlerton *hton;
-  LEX_CSTRING *old_alias, *new_alias;
+  LEX_CSTRING *old_alias, *new_alias, *new_db, *new_table_name;
   TRIGGER_RENAME_PARAM rename_param;
   DBUG_ENTER("do_rename");
   DBUG_PRINT("enter", ("skip_error: %d", (int) skip_error));
 
+  /* TODO: pass param in callees to reduce the number of arguments? */
   old_alias= &param->old_alias;
   new_alias= &param->new_alias;
+  new_db=    &param->new_name.db;
+  new_table_name= &param->new_name.name;
+  TABLE_LIST *ren_table= param->ren_table;
   hton=      param->from_table_hton;
 
   DBUG_ASSERT(!thd->locked_tables_mode);
@@ -557,9 +563,8 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
       if (error > 0)
         goto revert_rename;
 
-      if (do_rename(thd, &param, ddl_log_state,
-                    ren_table, &new_table->db, &new_table->table_name,
-                    skip_error, force_if_exists, fk_rename_backup))
+      if (do_rename(thd, &param, ddl_log_state, skip_error, force_if_exists,
+                    fk_rename_backup))
         goto revert_rename;
     }
   }
