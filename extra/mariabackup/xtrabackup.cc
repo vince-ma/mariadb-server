@@ -2976,7 +2976,9 @@ static bool xtrabackup_copy_logfile(bool last = false)
 
 	ut_ad(start_lsn == log_sys.log.scanned_lsn);
 
-	msg(">> log scanned up to (" LSN_PF ")", start_lsn);
+	if (verbose) {
+		msg(">> log scanned up to (" LSN_PF ")", start_lsn);
+	}
 
 	/* update global variable*/
 	pthread_mutex_lock(&backup_mutex);
