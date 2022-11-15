@@ -1586,9 +1586,6 @@ get_options(int *argc,char ***argv)
     }
   }
 
-  if (tty_password)
-    opt_password= get_tty_password(NullS);
-
   DBUG_RETURN(0);
 }
 
@@ -2327,7 +2324,7 @@ statement_cleanup(statement *stmt)
   }
 }
 
-
+#include "cli_utils.h"
 int 
 slap_connect(MYSQL *mysql)
 {
@@ -2339,11 +2336,11 @@ slap_connect(MYSQL *mysql)
     set_mysql_connect_options(mysql);
     if (opt_init_command)
       mysql_options(mysql, MYSQL_INIT_COMMAND, opt_init_command);
-    if (mysql_real_connect(mysql, host, user, opt_password,
+    if (cli_connect(mysql, host, user, &opt_password,
                            create_schema_string,
                            opt_mysql_port,
                            opt_mysql_unix_port,
-                           connect_flags))
+                           connect_flags,tty_password))
     {
       /* Connect succeeded */
       connect_error= 0;

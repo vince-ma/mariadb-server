@@ -357,8 +357,7 @@ static int get_options(int *argc, char ***argv)
   }
   current_db= *((*argv)++);
   (*argc)--;
-  if (tty_password)
-    opt_password=get_tty_password(NullS);
+
   return(0);
 }
 
@@ -473,9 +472,9 @@ static void lock_table(MYSQL *mysql, int tablecount, char **raw_tablename)
 
 
 
-
+#include "cli_utils.h"
 static MYSQL *db_connect(char *host, char *database,
-                         char *user, char *passwd)
+                         char *user, char **passwd)
 {
   MYSQL *mysql;
   my_bool reconnect;
@@ -526,9 +525,9 @@ static MYSQL *db_connect(char *host, char *database,
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlimport");
-  if (!(mysql_real_connect(mysql,host,user,passwd,
+  if (!(cli_connect(mysql,host,user,passwd,
                            database,opt_mysql_port,opt_mysql_unix_port,
-                           0)))
+                           0, tty_password)))
   {
     ignore_errors=0;	  /* NO RETURN FROM db_error */
     db_error(mysql);
@@ -663,7 +662,7 @@ pthread_handler_t worker_thread(void *arg)
   if (mysql_thread_init())
     goto error;
   
-  if (!(mysql= db_connect(current_host,current_db,current_user,opt_password)))
+  if (!(mysql= db_connect(current_host,current_db,current_user,&opt_password)))
   {
     goto error;
   }
@@ -802,7 +801,7 @@ int main(int argc, char **argv)
   else
   {
     MYSQL *mysql= 0;
-    if (!(mysql= db_connect(current_host,current_db,current_user,opt_password)))
+    if (!(mysql= db_connect(current_host,current_db,current_user,&opt_password)))
     {
       free_defaults(argv_to_free);
       return(1); /* purecov: deadcode */
