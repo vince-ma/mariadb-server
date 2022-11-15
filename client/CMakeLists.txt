@@ -35,6 +35,7 @@ COPY_OPENSSL_DLLS(copy_openssl_client)
 
 add_library(cli_utils STATIC cli_utils.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc)
 target_link_libraries(cli_utils mysys mariadbclient)
+add_dependencies(cli_utils GenError)
 
 SET(CLIENT_LIB mariadbclient mysys cli_utils)
 
