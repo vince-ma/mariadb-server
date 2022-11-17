@@ -28256,11 +28256,11 @@ void JOIN::cache_const_exprs()
     return;
 
   if (conds)
-    conds->compile(thd, &Item::cache_const_expr_analyzer, &analyzer_arg,
+    conds->top_level_compile(thd, &Item::cache_const_expr_analyzer, &analyzer_arg,
                               &Item::cache_const_expr_transformer, &cache_flag);
   cache_flag= FALSE;
   if (having)
-    having->compile(thd, &Item::cache_const_expr_analyzer,
+    having->top_level_compile(thd, &Item::cache_const_expr_analyzer,
                 &analyzer_arg, &Item::cache_const_expr_transformer, &cache_flag);
 
   for (JOIN_TAB *tab= first_depth_first_tab(this); tab;
@@ -28269,7 +28269,7 @@ void JOIN::cache_const_exprs()
     if (*tab->on_expr_ref)
     {
       cache_flag= FALSE;
-      (*tab->on_expr_ref)->compile(thd, &Item::cache_const_expr_analyzer,
+      (*tab->on_expr_ref)->top_level_compile(thd, &Item::cache_const_expr_analyzer,
                 &analyzer_arg, &Item::cache_const_expr_transformer, &cache_flag);
     }
   }
@@ -29324,7 +29324,6 @@ select_handler *SELECT_LEX::find_select_handler(THD *thd)
   }
   return 0;
 }
-
 
 
 /**
