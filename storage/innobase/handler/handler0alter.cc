@@ -5847,7 +5847,12 @@ static bool innobase_instant_try(
 	const dict_col_t* old_cols = user_table->cols;
 	DBUG_ASSERT(user_table->n_cols == ctx->old_n_cols);
 
+	/* Acquire the ahi latch to avoid the race condition
+	between ahi access and instant alter table */
+	srw_spin_lock *ahi_latch = btr_search_sys.get_latch(*index);
+	ahi_latch->wr_lock(SRW_LOCK_CALL);
 	const bool metadata_changed = ctx->instant_column();
+	ahi_latch->wr_unlock();
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);
 	/* The table may have been emptied and may have lost its
