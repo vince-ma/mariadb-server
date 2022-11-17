@@ -4000,7 +4000,8 @@ released:
   LockMutexGuard g{SRW_LOCK_CALL};
   for (const table_id_t id : to_evict)
     if (dict_table_t *table= dict_sys.find_table(id))
-      if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
+      if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks)
+          && !dict_table_has_open_references(table))
         dict_sys.remove(table, true);
   dict_sys.unlock();
 #endif

@@ -1218,6 +1218,21 @@ inline void dict_sys_t::add(dict_table_t* table)
 	ut_ad(dict_lru_validate());
 }
 
+
+/** Test if some tables referenced are still open
+@param[in]  table    InnoDB table
+@return true if at least one table referenced by a table agrument is still open,
+        false otherwise */
+bool dict_table_has_open_references(dict_table_t *table)
+{
+  for (auto *fk: table->foreign_set)
+  {
+    if (fk->referenced_table != NULL)
+      return true;
+  }
+  return false;
+}
+
 /** Test whether a table can be evicted from dict_sys.table_LRU.
 @param table   table to be considered for eviction
 @return whether the table can be evicted */
@@ -1238,6 +1253,10 @@ static bool dict_table_can_be_evicted(dict_table_t *table)
 		if (lock_table_has_locks(table)) {
 			return false;
 		}
+
+		// Tables attached to FK constraints should never be evicted.
+		if (dict_table_has_open_references(table))
+			return false;
 
 #ifdef BTR_CUR_HASH_ADAPT
 		/* We cannot really evict the table if adaptive hash

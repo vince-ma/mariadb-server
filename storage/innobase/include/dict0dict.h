@@ -1743,6 +1743,12 @@ bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
 
+/** Test if some tables referenced are still open
+@param[in]  table    InnoDB table
+@return true if at least one table referenced by a table agrument is still open,
+        false otherwise */
+bool dict_table_has_open_references(dict_table_t *table);
+
 #include "dict0dict.inl"
 
 #endif
