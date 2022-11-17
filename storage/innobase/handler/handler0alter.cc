@@ -4371,8 +4371,14 @@ innobase_add_instant_try(
 	DBUG_ASSERT(ctx->old_table->n_cols == ctx->old_n_cols);
 
 	dict_table_t* user_table = ctx->old_table;
-	user_table->instant_add_column(*ctx->instant_table);
 	dict_index_t* index = dict_table_get_first_index(user_table);
+
+	/* Acquire the ahi latch to avoid the race condition
+	between ahi access and instant alter table */
+	rw_lock_t* ahi_latch = btr_get_search_latch(index);
+	rw_lock_x_lock(ahi_latch);
+	user_table->instant_add_column(*ctx->instant_table);
+	rw_lock_x_unlock(ahi_latch);
 	/* The table may have been emptied and may have lost its
 	'instant-add-ness' during this instant ADD COLUMN. */
 
