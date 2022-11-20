@@ -296,6 +296,8 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share)
 {
   DBUG_ENTER("ha_partition::ha_partition(table)");
   ha_partition_init();
+  m_main_engine_ht= share ?
+    plugin_data(share->default_part_plugin, handlerton *) : NULL;
   DBUG_VOID_RETURN;
 }
 
@@ -330,6 +332,7 @@ ha_partition::ha_partition(handlerton *hton, partition_info *part_info)
   m_part_info= part_info;
   m_create_handler= TRUE;
   m_is_sub_partitioned= m_part_info->is_sub_partitioned();
+  m_main_engine_ht= m_part_info->main_engine_ht;
   DBUG_VOID_RETURN;
 }
 
@@ -360,6 +363,7 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share,
   m_clone_mem_root= clone_mem_root_arg;
   part_share= clone_arg->part_share;
   m_tot_parts= clone_arg->m_tot_parts;
+  m_main_engine_ht= m_part_info->main_engine_ht;
   DBUG_VOID_RETURN;
 }
 
@@ -462,7 +466,7 @@ void ha_partition::init_handler_variables()
 const char *ha_partition::real_table_type() const
 {
   // we can do this since we only support a single engine type
-  return m_file[0]->table_type();
+  return hton_name(m_main_engine_ht)->str;
 }
 
 /*
@@ -547,8 +551,10 @@ ha_partition::~ha_partition()
 
 bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
 {
+  /*MDEV-22168
   handler **file_array, *file;
   ulonglong check_table_flags;
+  MDEV-22168*/
   DBUG_ENTER("ha_partition::initialize_partition");
 
   if (m_create_handler)
@@ -580,6 +586,7 @@ bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
     other parameters are calculated on demand.
     Verify that all partitions have the same table_flags.
   */
+  /*MDEV-22168
   check_table_flags= m_file[0]->ha_table_flags();
   file_array= m_file;
   do
@@ -591,6 +598,7 @@ bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
       DBUG_RETURN(1);
     }
   } while (*(++file_array));
+  MDEV-22168*/
   m_handler_status= handler_initialized;
   DBUG_RETURN(0);
 }
@@ -2477,7 +2485,7 @@ uint ha_partition::del_ren_table(const char *from, const char *to)
       DBUG_RETURN(error);
   }
 
-  if (ha_check_if_updates_are_ignored(thd, partition_ht(),
+  if (ha_check_if_updates_are_ignored(thd, m_file[0]->ht,
                                       to ? "RENAME" : "DROP"))
     DBUG_RETURN(0);
 
@@ -3220,23 +3228,17 @@ err1:
     @retval true   Failure
 */
 
-bool ha_partition::setup_engine_array(MEM_ROOT *mem_root,
-                                      handlerton* first_engine)
+bool ha_partition::setup_engine_array(MEM_ROOT *mem_root)
 {
   uint i;
   uchar *buff;
-  handlerton **engine_array;
-  enum legacy_db_type db_type, first_db_type;
+  enum legacy_db_type db_type;
 
   DBUG_ASSERT(!m_file);
   DBUG_ENTER("ha_partition::setup_engine_array");
-  engine_array= (handlerton **) my_alloca(m_tot_parts * sizeof(handlerton*));
-  if (!engine_array)
-    DBUG_RETURN(true);
 
   buff= (uchar *) (m_file_buffer + PAR_ENGINES_OFFSET);
 
-  first_db_type= (enum legacy_db_type) buff[0];
   if (!(m_engine_array= (plugin_ref*)
         alloc_root(&m_mem_root, m_tot_parts * sizeof(plugin_ref))))
     goto err;
@@ -3244,6 +3246,7 @@ bool ha_partition::setup_engine_array(MEM_ROOT *mem_root,
   for (i= 0; i < m_tot_parts; i++)
   {
     db_type= (enum legacy_db_type) buff[i];
+    /*MDEV-22168
     if (db_type != first_db_type)
     {
       DBUG_PRINT("error", ("partition %u engine %d is not same as "
@@ -3254,25 +3257,19 @@ bool ha_partition::setup_engine_array(MEM_ROOT *mem_root,
       goto err;
     }
     m_engine_array[i]= ha_lock_engine(NULL, first_engine);
+    MDEV-22168*/
+    m_engine_array[i]= engine_by_legacy_type(NULL, db_type);
     if (!m_engine_array[i])
-    {
-      clear_handler_file();
       goto err;
-    }
   }
-
-  my_afree(engine_array);
 
   if (create_handlers(mem_root))
-  {
-    clear_handler_file();
-    DBUG_RETURN(true);
-  }
+    goto err;
 
   DBUG_RETURN(false);
 
 err:
-  my_afree(engine_array);
+  clear_handler_file();
   DBUG_RETURN(true);
 }
 
@@ -3373,11 +3370,7 @@ bool ha_partition::get_from_handler_file(const char *name, MEM_ROOT *mem_root,
   if (read_par_file(name))
     DBUG_RETURN(true);
 
-  handlerton *default_engine= get_def_part_engine(name);
-  if (!default_engine)
-    DBUG_RETURN(true);
-
-  if (!is_clone && setup_engine_array(mem_root, default_engine))
+  if (!is_clone && setup_engine_array(mem_root))
     DBUG_RETURN(true);
 
   DBUG_RETURN(false);
@@ -3702,7 +3695,10 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   int error= HA_ERR_INITIALIZATION;
   handler **file;
   char name_buff[FN_REFLEN + 1];
+  bool first_file;
+#ifdef MDEV22168
   ulonglong check_table_flags;
+#endif /*MDEV22168*/
   DBUG_ENTER("ha_partition::open");
 
   DBUG_ASSERT(table->s == table_share);
@@ -3821,27 +3817,45 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     check_insert_or_replace_autoincrement();
     if (unlikely((error= open_read_partitions(name_buff, sizeof(name_buff)))))
       goto err_handler;
-    m_num_locks= m_file_sample->lock_count();
   }
-  /*
-    We want to know the upper bound for locks, to allocate enough memory.
-    There is no performance lost if we simply return in lock_count() the
-    maximum number locks needed, only some minor over allocation of memory
-    in get_lock_data().
-  */
-  m_num_locks*= m_tot_parts;
 
   file= m_file;
-  ref_length= get_open_file_sample()->ref_length;
+#ifdef MDEV22168
   check_table_flags= ((get_open_file_sample()->ha_table_flags() &
                        ~(PARTITION_DISABLED_TABLE_FLAGS)) |
                       (PARTITION_ENABLED_TABLE_FLAGS));
+#endif /*MDEV22168*/
+  key_used_on_scan= MAX_KEY;
+  implicit_emptied= FALSE;
+  m_num_locks= 0;
+
+  first_file= TRUE;
   while (*(++file))
   {
     if (!bitmap_is_set(&m_opened_partitions, (uint)(file - m_file)))
       continue;
-    /* MyISAM can have smaller ref_length for partitions with MAX_ROWS set */
-    set_if_bigger(ref_length, ((*file)->ref_length));
+    if (first_file)
+    {
+      key_used_on_scan= (*file)->key_used_on_scan;
+      implicit_emptied= (*file)->implicit_emptied;
+      ref_length= (*file)->ref_length;
+      first_file= FALSE;
+    }
+    else
+    {
+      if (!(*file)->implicit_emptied)
+        implicit_emptied= FALSE;
+
+      set_if_bigger(ref_length, ((*file)->ref_length));
+
+      if (key_used_on_scan != MAX_KEY &&
+          (*file)->key_used_on_scan != key_used_on_scan)
+        key_used_on_scan= MAX_KEY;
+    }
+
+    m_num_locks+= (*file)->lock_count();
+
+#ifdef MDEV22168
     /*
       Verify that all partitions have the same set of table flags.
       Mask all flags that partitioning enables/disables.
@@ -3855,9 +3869,8 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
       file= &m_file[m_tot_parts - 1];
       goto err_handler;
     }
+#endif /*MDEV22168*/
   }
-  key_used_on_scan= get_open_file_sample()->key_used_on_scan;
-  implicit_emptied= get_open_file_sample()->implicit_emptied;
   /*
     Add 2 bytes for partition id in position ref length.
     ref_length=max_in_all_partitions(ref_length) + PARTITION_BYTES_IN_POS
