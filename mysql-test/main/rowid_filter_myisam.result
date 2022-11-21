@@ -142,6 +142,7 @@ EXPLAIN
         "table": {
           "table_name": "t2",
           "access_type": "ALL",
+          "loops": 1,
           "rows": 101,
           "cost": "COST_REPLACED",
           "filtered": 100,
@@ -165,6 +166,7 @@ EXPLAIN
             "rows": 87,
             "selectivity_pct": 87
           },
+          "loops": 101,
           "rows": 1,
           "cost": "COST_REPLACED",
           "filtered": 87,
@@ -186,6 +188,7 @@ EXPLAIN
                 "key": "PRIMARY",
                 "key_length": "4",
                 "used_key_parts": ["pk2"],
+                "loops": 1,
                 "rows": 1,
                 "cost": "COST_REPLACED",
                 "filtered": 100,
