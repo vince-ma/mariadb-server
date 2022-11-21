@@ -440,16 +440,15 @@ inline
 dberr_t
 btr_pcur_open_on_user_rec(
 	const dtuple_t*	tuple,		/*!< in: tuple on which search done */
-	page_cur_mode_t	mode,		/*!< in: PAGE_CUR_L, ... */
 	btr_latch_mode	latch_mode,	/*!< in: BTR_SEARCH_LEAF or
 					BTR_MODIFY_LEAF */
 	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
 					cursor */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-  ut_ad(mode == PAGE_CUR_GE || mode == PAGE_CUR_G);
   ut_ad(latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF);
-  if (dberr_t err= btr_pcur_open(tuple, mode, latch_mode, cursor, 0, mtr))
+  if (dberr_t err=
+      btr_pcur_open(tuple, PAGE_CUR_GE, latch_mode, cursor, 0, mtr))
     return err;
   if (!btr_pcur_is_after_last_on_page(cursor) ||
       btr_pcur_is_after_last_in_tree(cursor))

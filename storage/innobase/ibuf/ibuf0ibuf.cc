@@ -4206,7 +4206,7 @@ loop:
 
 	/* Position pcur in the insert buffer at the first entry for this
 	index page */
-	if (btr_pcur_open_on_user_rec(search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_on_user_rec(search_tuple,
 				      BTR_MODIFY_LEAF, &pcur, &mtr)
 	    != DB_SUCCESS) {
 		err = DB_CORRUPTION;
@@ -4414,7 +4414,7 @@ loop:
 
 	/* Position pcur in the insert buffer at the first entry for the
 	space */
-	if (btr_pcur_open_on_user_rec(search_tuple, PAGE_CUR_GE,
+	if (btr_pcur_open_on_user_rec(search_tuple,
 				      BTR_MODIFY_LEAF, &pcur, &mtr)
 	    != DB_SUCCESS) {
 		goto leave_loop;
