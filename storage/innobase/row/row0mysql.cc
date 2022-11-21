@@ -1591,7 +1591,10 @@ init_fts_doc_id_for_ref(
 	/* Loop through this table's referenced list and also
 	recursively traverse each table's foreign table list */
 	for (dict_foreign_t* foreign : table->referenced_set) {
+		if (!foreign->modifies_child())
+			continue;
 		ut_ad(foreign->foreign_table);
+		ut_ad(foreign->foreign_table->get_ref_count() != 0);
 
 		if (foreign->foreign_table->fts) {
 			fts_init_doc_id(foreign->foreign_table);

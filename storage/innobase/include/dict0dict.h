@@ -1455,6 +1455,7 @@ public:
   @param[in,out]	table	cached table definition to be evicted
   @param[in]	lru	whether this is part of least-recently-used evictiono
   @param[in]	keep	whether to keep (not free) the object */
+  template <bool drop=false>
   void remove(dict_table_t* table, bool lru = false, bool keep = false);
 
 #ifdef UNIV_DEBUG
