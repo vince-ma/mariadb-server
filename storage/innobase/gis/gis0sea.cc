@@ -509,6 +509,22 @@ static void rtr_compare_cursor_rec(const rec_t *rec, dict_index_t *index,
 }
 #endif
 
+dberr_t rtr_search_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+                        btr_latch_mode latch_mode, mtr_t *mtr)
+{
+  // TODO: implement this specially
+  return btr_cur_search_to_nth_level(0, tuple, PAGE_CUR_RTREE_LOCATE,
+                                     latch_mode, cur, mtr);
+}
+
+dberr_t rtr_insert_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+                        btr_latch_mode latch_mode, mtr_t *mtr)
+{
+  // TODO: implement this specially
+  return btr_cur_search_to_nth_level(0, tuple, PAGE_CUR_RTREE_INSERT,
+                                     latch_mode, cur, mtr);
+}
+
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. Mainly called by row_search_index_entry() */
@@ -550,8 +566,8 @@ rtr_pcur_open(
 		mtr->lock_upgrade(index->lock);
 	}
 
-	if (btr_cursor->search_leaf(tuple, PAGE_CUR_RTREE_LOCATE, latch_mode,
-				    mtr) != DB_SUCCESS) {
+	if (rtr_search_leaf(btr_cursor, tuple, latch_mode, mtr)
+	    != DB_SUCCESS) {
 		return true;
 	}
 

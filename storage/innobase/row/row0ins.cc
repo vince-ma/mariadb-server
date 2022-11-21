@@ -2889,8 +2889,7 @@ row_ins_sec_index_entry_low(
 		rtr_init_rtr_info(&rtr_info, false, &cursor, index, false);
 		rtr_info_update_btr(&cursor, &rtr_info);
 
-		err = cursor.search_leaf(entry, PAGE_CUR_RTREE_INSERT,
-					 search_mode, &mtr);
+		err = rtr_insert_leaf(&cursor, entry, search_mode, &mtr);
 
 		if (err == DB_SUCCESS && search_mode == BTR_MODIFY_LEAF
 		    && rtr_info.mbr_adj) {
@@ -2906,8 +2905,8 @@ row_ins_sec_index_entry_low(
 			} else {
 				index->set_modified(mtr);
 			}
-			err = cursor.search_leaf(entry, PAGE_CUR_RTREE_INSERT,
-						 search_mode, &mtr);
+			err = rtr_insert_leaf(&cursor, entry,
+					      search_mode, &mtr);
 		}
 
 		DBUG_EXECUTE_IF(

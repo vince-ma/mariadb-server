@@ -59,6 +59,25 @@ Created 2013/03/27 Jimmy Yang and Allen Lai
 
 /* Geometry data header */
 #define	GEO_DATA_HEADER_SIZE	4
+
+/** Search for a spatial index leaf page record.
+@param cur         cursor
+@param tuple       search tuple
+@param latch_mode  latching mode
+@param mtr         mini-transaction */
+dberr_t rtr_search_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+                        btr_latch_mode latch_mode, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Search for inserting a spatial index leaf page record.
+@param cur         cursor
+@param tuple       search tuple
+@param latch_mode  latching mode
+@param mtr         mini-transaction */
+dberr_t rtr_insert_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+                        btr_latch_mode latch_mode, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /**********************************************************************//**
 Builds a Rtree node pointer out of a physical record and a page number.
 @return own: node pointer */

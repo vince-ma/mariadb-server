@@ -1202,6 +1202,11 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
                                btr_latch_mode latch_mode, mtr_t *mtr,
                                uint64_t autoinc)
 {
+  ut_ad(mode == PAGE_CUR_G || mode == PAGE_CUR_GE ||
+        mode == PAGE_CUR_L || mode == PAGE_CUR_LE ||
+        mode == PAGE_CUR_CONTAIN || mode == PAGE_CUR_INTERSECT ||
+        mode == PAGE_CUR_WITHIN || mode == PAGE_CUR_DISJOINT ||
+        mode == PAGE_CUR_MBR_EQUAL);
   // TODO: implement this specially, or specialize further
   return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode, this, mtr,
                                      autoinc);
