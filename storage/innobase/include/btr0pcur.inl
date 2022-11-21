@@ -299,36 +299,14 @@ btr_pcur_init(
 	pcur->btr_cur.rtr_info = NULL;
 }
 
-/**************************************************************//**
-Initializes and opens a persistent cursor to an index tree. */
-inline
-dberr_t
-btr_pcur_open(
-	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
-	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
-				NOTE that if the search is made using a unique
-				prefix of a record, mode should be
-				PAGE_CUR_LE, not PAGE_CUR_GE, as the latter
-				may end up on the previous page from the
-				record! */
-	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
-	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
-	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
-				(0 if none) */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-  ut_ad(!cursor->index()->is_spatial());
-  cursor->latch_mode= BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
-  cursor->search_mode= mode;
-  cursor->pos_state= BTR_PCUR_IS_POSITIONED;
-  cursor->trx_if_known= nullptr;
-  return cursor->btr_cur.search_leaf(tuple, mode, latch_mode, mtr, autoinc);
-}
+dberr_t rtr_search_leaf(btr_cur_t *cur, const dtuple_t *tuple,
+                        page_cur_mode_t mode, btr_latch_mode latch_mode,
+                        mtr_t *mtr);
 
 /** Opens an persistent cursor to an index tree without initializing the
 cursor.
 @param tuple      tuple on which search done
-@param mode       PAGE_CUR_L, ...; NOTE that if the search is made using a
+@param mode       search mode; NOTE that if the search is made using a
                   unique prefix of a record, mode should be PAGE_CUR_LE, not
                   PAGE_CUR_GE, as the latter may end up on the previous page of
                   the record!
@@ -337,8 +315,7 @@ cursor.
 @param mtr        mini-transaction
 @return DB_SUCCESS on success or error code otherwise. */
 inline
-dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple,
-                                   page_cur_mode_t mode,
+dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple, page_cur_mode_t mode,
                                    btr_latch_mode latch_mode,
                                    btr_pcur_t *cursor, mtr_t *mtr)
 {
@@ -346,7 +323,26 @@ dberr_t btr_pcur_open_with_no_init(const dtuple_t *tuple,
   cursor->search_mode= mode;
   cursor->pos_state= BTR_PCUR_IS_POSITIONED;
   cursor->trx_if_known= nullptr;
-  return cursor->btr_cur.search_leaf(tuple, mode, latch_mode, mtr);
+  switch (mode) {
+  case PAGE_CUR_GE:
+    return cursor->btr_cur.search_leaf<PAGE_CUR_GE>(tuple, latch_mode, mtr);
+  case PAGE_CUR_LE:
+    return cursor->btr_cur.search_leaf<PAGE_CUR_LE>(tuple, latch_mode, mtr);
+  case PAGE_CUR_L:
+    return cursor->btr_cur.search_leaf<PAGE_CUR_L>(tuple, latch_mode, mtr);
+  case PAGE_CUR_G:
+    return cursor->btr_cur.search_leaf<PAGE_CUR_G>(tuple, latch_mode, mtr);
+  case PAGE_CUR_CONTAIN:
+  case PAGE_CUR_INTERSECT:
+  case PAGE_CUR_WITHIN:
+  case PAGE_CUR_DISJOINT:
+  case PAGE_CUR_MBR_EQUAL:
+    return rtr_search_leaf(&cursor->btr_cur, tuple, mode, latch_mode, mtr);
+  default:
+    ut_ad("invalid mode" == 0);
+    MY_ASSERT_UNREACHABLE();
+    return DB_CORRUPTION;
+  }
 }
 
 /**************************************************************//**

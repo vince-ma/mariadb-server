@@ -1696,8 +1696,8 @@ err_exit:
 		mtr->start();
 		index->set_modified(*mtr);
 		pcur->btr_cur.page_cur.index = index;
-		error = btr_pcur_open(entry, PAGE_CUR_LE,
-				      BTR_PURGE_TREE, pcur, 0, mtr);
+		error = btr_pcur_open<PAGE_CUR_LE>(entry, BTR_PURGE_TREE, pcur,
+						   0, mtr);
 		if (error) {
 			goto err_exit;
 		}
@@ -1780,8 +1780,8 @@ row_log_table_apply_delete(
 
 	mtr_start(&mtr);
 	index->set_modified(mtr);
-	dberr_t err = btr_pcur_open(old_pk, PAGE_CUR_LE,
-				    BTR_PURGE_TREE, &pcur, 0, &mtr);
+	dberr_t err = btr_pcur_open<PAGE_CUR_LE>(old_pk, BTR_PURGE_TREE, &pcur,
+						 0, &mtr);
 	if (err != DB_SUCCESS) {
 		goto all_done;
 	}
@@ -1917,8 +1917,8 @@ row_log_table_apply_update(
 
 	mtr.start();
 	index->set_modified(mtr);
-	error = btr_pcur_open(old_pk, PAGE_CUR_LE,
-			      BTR_MODIFY_TREE, &pcur, 0, &mtr);
+	error = btr_pcur_open<PAGE_CUR_LE>(old_pk, BTR_MODIFY_TREE, &pcur, 0,
+					   &mtr);
 	if (error != DB_SUCCESS) {
 func_exit:
 		mtr.commit();
@@ -3081,8 +3081,9 @@ row_log_apply_op_low(
 	record. The operation may already have been performed,
 	depending on when the row in the clustered index was
 	scanned. */
-	*error = cursor.search_leaf(entry, PAGE_CUR_LE, has_index_lock
-				    ? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &mtr);
+	*error = cursor.search_leaf<PAGE_CUR_LE>(entry, has_index_lock
+						 ? BTR_MODIFY_TREE
+						 : BTR_MODIFY_LEAF, &mtr);
 	if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 		goto func_exit;
 	}
@@ -3132,9 +3133,8 @@ row_log_apply_op_low(
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
 				index->set_modified(mtr);
-				*error = cursor.search_leaf(entry, PAGE_CUR_LE,
-							    BTR_MODIFY_TREE,
-							    &mtr);
+				*error = cursor.search_leaf<PAGE_CUR_LE>(
+					entry, BTR_MODIFY_TREE, &mtr);
 				if (UNIV_UNLIKELY(*error != DB_SUCCESS)) {
 					goto func_exit;
 				}
@@ -3236,9 +3236,8 @@ insert_the_rec:
 				mtr_commit(&mtr);
 				mtr_start(&mtr);
 				index->set_modified(mtr);
-				*error = cursor.search_leaf(entry, PAGE_CUR_LE,
-							    BTR_MODIFY_TREE,
-							    &mtr);
+				*error = cursor.search_leaf<PAGE_CUR_LE>(
+					entry, BTR_MODIFY_TREE, &mtr);
 				if (*error != DB_SUCCESS) {
 					break;
 				}

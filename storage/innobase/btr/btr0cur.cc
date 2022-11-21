@@ -1197,20 +1197,30 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 	return rec_max_size;
 }
 
-TRANSACTIONAL_TARGET
-dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
+template<page_cur_mode_t mode>
+dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple,
                                btr_latch_mode latch_mode, mtr_t *mtr,
                                uint64_t autoinc)
 {
-  ut_ad(mode == PAGE_CUR_G || mode == PAGE_CUR_GE ||
-        mode == PAGE_CUR_L || mode == PAGE_CUR_LE ||
-        mode == PAGE_CUR_CONTAIN || mode == PAGE_CUR_INTERSECT ||
-        mode == PAGE_CUR_WITHIN || mode == PAGE_CUR_DISJOINT ||
-        mode == PAGE_CUR_MBR_EQUAL);
+  static_assert(mode == PAGE_CUR_G || mode == PAGE_CUR_GE ||
+                mode == PAGE_CUR_L || mode == PAGE_CUR_LE, "");
   // TODO: implement this specially, or specialize further
   return btr_cur_search_to_nth_level(0, tuple, mode, latch_mode, this, mtr,
                                      autoinc);
 }
+
+template
+dberr_t btr_cur_t::search_leaf<PAGE_CUR_G>(const dtuple_t *, btr_latch_mode,
+                                           mtr_t *, uint64_t);
+template
+dberr_t btr_cur_t::search_leaf<PAGE_CUR_GE>(const dtuple_t *, btr_latch_mode,
+                                            mtr_t *, uint64_t);
+template
+dberr_t btr_cur_t::search_leaf<PAGE_CUR_L>(const dtuple_t *, btr_latch_mode,
+                                           mtr_t *, uint64_t);
+template
+dberr_t btr_cur_t::search_leaf<PAGE_CUR_LE>(const dtuple_t *, btr_latch_mode,
+                                            mtr_t *, uint64_t);
 
 /********************************************************************//**
 Searches an index tree and positions a tree cursor on a given level.

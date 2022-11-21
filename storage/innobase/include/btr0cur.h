@@ -815,15 +815,15 @@ struct btr_cur_t {
                     mtr_t *mtr);
 
   /** Search the leaf page record corresponding to a key.
-  @param tuple       key to search for, with correct n_fields_cmp
-  @param mode        search mode; PAGE_CUR_LE for unique prefix or for inserting
-  @param latch_mode  latch mode
-  @param mtr         mini-transaction
+  @tparam mode      search mode; PAGE_CUR_LE for unique prefix or for inserting
+  @param tuple      key to search for, with correct n_fields_cmp
+  @param latch_mode latch mode
+  @param mtr        mini-transaction
   @param autoinc    PAGE_ROOT_AUTO_INC to be written (0 if none)
   @return error code */
-  dberr_t search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
-                      btr_latch_mode latch_mode, mtr_t *mtr,
-                      uint64_t autoinc= 0);
+  template<page_cur_mode_t mode>
+  dberr_t search_leaf(const dtuple_t *tuple, btr_latch_mode latch_mode,
+                      mtr_t *mtr, uint64_t autoinc= 0);
 };
 
 /** Modify the delete-mark flag of a record.

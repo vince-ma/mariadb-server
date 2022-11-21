@@ -756,7 +756,7 @@ dict_create_index_tree_step(
 		UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes);
 
 	dberr_t err =
-		btr_pcur_open(search_tuple, PAGE_CUR_L, BTR_MODIFY_LEAF,
+		btr_pcur_open<PAGE_CUR_L>(search_tuple, BTR_MODIFY_LEAF,
 			      &pcur, 0, &mtr);
 
 	if (err != DB_SUCCESS) {

@@ -2338,8 +2338,8 @@ loop:
 		pcur.btr_cur.page_cur.index = ibuf.index;
 
 		ibuf_mtr_start(&mtr);
-		if (btr_pcur_open(tuple, PAGE_CUR_GE,
-				  BTR_MODIFY_LEAF, &pcur, 0, &mtr)
+		if (btr_pcur_open<PAGE_CUR_GE>(tuple, BTR_MODIFY_LEAF, &pcur,
+					       0, &mtr)
 		    != DB_SUCCESS) {
 			goto done;
 		}
@@ -2465,8 +2465,8 @@ ibuf_merge_space(
 	/* Position the cursor on the first matching record. */
 
 	pcur.btr_cur.page_cur.index = ibuf.index;
-	dberr_t err = btr_pcur_open(tuple, PAGE_CUR_GE,
-				    BTR_SEARCH_LEAF, &pcur, 0, &mtr);
+	dberr_t err = btr_pcur_open<PAGE_CUR_GE>(tuple, BTR_SEARCH_LEAF,
+						 &pcur, 0, &mtr);
 	ut_ad(err != DB_SUCCESS || page_validate(btr_pcur_get_page(&pcur),
 						 ibuf.index));
 
@@ -3212,7 +3212,7 @@ ibuf_insert_low(
 	ibuf_mtr_start(&mtr);
 	pcur.btr_cur.page_cur.index = ibuf.index;
 
-	err = btr_pcur_open(ibuf_entry, PAGE_CUR_LE, mode, &pcur, 0, &mtr);
+	err = btr_pcur_open<PAGE_CUR_LE>(ibuf_entry, mode, &pcur, 0, &mtr);
 	if (err != DB_SUCCESS) {
 func_exit:
 		ibuf_mtr_commit(&mtr);

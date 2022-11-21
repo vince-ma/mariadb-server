@@ -1216,7 +1216,7 @@ row_search_on_row_ref(
 			& REC_INFO_MIN_REC_FLAG;
 	} else {
 		ut_a(ref->n_fields == index->n_uniq);
-		if (btr_pcur_open(ref, PAGE_CUR_LE, mode, pcur, 0, mtr)
+		if (btr_pcur_open<PAGE_CUR_LE>(ref, mode, pcur, 0, mtr)
 		    != DB_SUCCESS) {
 			return false;
 		}
@@ -1283,7 +1283,7 @@ row_search_index_entry(
 			return ROW_NOT_FOUND;
 		}
 	} else {
-		if (btr_pcur_open(entry, PAGE_CUR_LE, mode, pcur, 0, mtr)
+		if (btr_pcur_open<PAGE_CUR_LE>(entry, mode, pcur, 0, mtr)
 		    != DB_SUCCESS) {
 			return ROW_NOT_FOUND;
 		}
