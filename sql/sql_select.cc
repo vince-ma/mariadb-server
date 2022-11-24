@@ -8937,8 +8937,8 @@ best_access_path(JOIN      *join,
     else
     {
       /* We will now calculate cost of scan, with or without join buffer */
-      records_after_filter= matching_candidates_in_table(s, 0,
-                                                         use_cond_selectivity);
+      records_best_filter= records_after_filter=
+        matching_candidates_in_table(s, 0, use_cond_selectivity);
       DBUG_ASSERT(records_after_filter <= s->records);
 
       set_if_smaller(best.records_out, records_after_filter);
