@@ -32,6 +32,7 @@
 #include "uniques.h"
 #include "sql_show.h"
 #include "sql_partition.h"
+#include "memory_helpers.h"
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -2914,8 +2915,8 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables,
     Read data into a new TABLE_STATISTICS_CB object and replace
     TABLE_SHARE::stats_cb with this new one once the reading is finished
   */
-  std::shared_ptr<TABLE_STATISTICS_CB> new_stats_cb=
-      std::shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
+  auto new_stats_cb=
+      Shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
   if (!new_stats_cb->start_stats_load()) // OLEGS: do we need this, maybe can be removed?
     DBUG_RETURN(table_share->stats_cb->stats_are_ready() ? 0 : 1);
 
@@ -3668,7 +3669,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
       from INFORMATION_SCHEMA.
     */
     table->s->stats_cb=
-        std::shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
+        Shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
   }
 
   /*
@@ -3676,7 +3677,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
     data race if another thread reloads the statistics while this function
     is running
   */
-  auto stats_cb= std::shared_ptr<TABLE_STATISTICS_CB>(table->s->stats_cb);
+  auto stats_cb= Shared_ptr<TABLE_STATISTICS_CB>(table->s->stats_cb);
 
   Table_statistics *read_stats= stats_cb->table_stats;
   table->used_stat_records= 
