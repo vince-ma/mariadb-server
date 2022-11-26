@@ -211,7 +211,9 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
             "cost_for_plan": 0.005306142,
             "pushdown_cond_selectivity": 0.1,
             "filtered": 10,
-            "rows_out": 0.6
+            "rows_out": 0.6,
+            "selectivity": 0.1,
+            "estimated_join_cardinality": 0.6
         }
     ]
 ]

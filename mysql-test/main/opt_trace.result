@@ -1688,14 +1688,16 @@ set statement optimizer_scan_setup_cost=0 for EXPLAIN SELECT MIN(d) FROM t1 wher
                 "pushdown_cond_selectivity": 0.571428573,
                 "filtered": 8.163265322,
                 "rows_out": 0.571428573,
-                "cost_for_sorting": 3.585611e-4
+                "selectivity": 0.571428573,
+                "estimated_join_cardinality": 0.571428573,
+                "cost_for_sorting": 6.301866e-4
               }
             ]
           },
           {
             "best_join_order": ["t1"],
             "rows": 0.571428573,
-            "cost": 0.002116993
+            "cost": 0.002388619
           },
           {
             "substitute_best_equal": {
@@ -12444,7 +12446,9 @@ explain select * from t1 where a<10 and b between 10 and 50 and c < 10	{
                 "cost_for_plan": 0.002814467,
                 "pushdown_cond_selectivity": 0.094,
                 "filtered": 0.1974,
-                "rows_out": 0.017766
+                "rows_out": 0.017766,
+                "selectivity": 0.094,
+                "estimated_join_cardinality": 0.017766
               }
             ]
           },

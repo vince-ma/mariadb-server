@@ -9737,6 +9737,7 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
       position->cond_selectivity= 1.0;
     ++idx;
     record_count= current_record_count;
+    set_if_bigger(record_count, 1.0);
   }
 
   if (join->sort_by_table &&
@@ -10992,6 +10993,17 @@ best_extension_by_limited_search(JOIN      *join,
                                              position->records_init));
         }
       }
+      /*
+        If there is a table with very high selectivity then join
+        record_count could become very low (close to 0) This would
+        cause costs for all future tables to be so small that they are
+        irrelevant for the rest of the plan.  This has been shown to
+        be the case in some performance benchmarks.
+        Let's assume that there will be at least one record in the
+        result, which means that current_record_count should never go
+        under 1.
+      */
+      set_if_bigger(current_record_count, 1.0);
       /* Expand only partial plans with lower cost than the best QEP so far */
       if (current_read_time + COST_EPS >= join->best_read)
       {
@@ -11523,7 +11535,10 @@ prev_record_reads(const POSITION *positions, uint idx, table_map found_ref)
           #max_nested_outer_joins=64-1) will not make it any more precise.
       */
       if (pos->records_out)
+      {
         found= COST_MULT(found, pos->records_out);
+        set_if_bigger(found, 1.0);
+      }
     }
   }
   return found;
@@ -18833,6 +18848,7 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
 
     if (rs->emb_sj_nest)
       inner_fanout= COST_MULT(inner_fanout, records_out);
+    set_if_bigger(rec_count, 1.0);
   }
 
   /* Discount the fanout produced by the subquery */

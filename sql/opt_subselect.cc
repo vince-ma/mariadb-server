@@ -3240,6 +3240,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
                        join->positions, i,
                        disable_jbuf, prefix_rec_count, &curpos, &dummy);
       prefix_rec_count= COST_MULT(prefix_rec_count, curpos.records_out);
+      set_if_bigger(prefix_rec_count, 1.0);
       prefix_cost= COST_ADD(prefix_cost, curpos.read_time);
       //TODO: take into account join condition selectivity here
     }
@@ -3465,7 +3466,10 @@ bool Firstmatch_picker::check_qep(JOIN *join,
              - remove fanout added by the last table
           */
           if (*record_count)
+          {
             *record_count /= join->positions[idx].records_out;
+            set_if_bigger(*record_count, 1.0);
+          }
         }
         else
         {
@@ -3641,11 +3645,13 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       if (p->table->emb_sj_nest)
       {
         sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_out);
+        set_if_bigger(sj_inner_fanout, 1.0);
         dups_removed_fanout |= p->table->table->map;
       }
       else
       {
         sj_outer_fanout= COST_MULT(sj_outer_fanout, p->records_out);
+        set_if_bigger(sj_outer_fanout, 1.0);
         temptable_rec_size += p->table->table->file->ref_length;
       }
     }
@@ -3884,9 +3890,11 @@ static void recalculate_prefix_record_count(JOIN *join, uint start, uint end)
     if (j == join->const_tables)
       prefix_count= 1.0;
     else
+    {
       prefix_count= COST_MULT(join->best_positions[j-1].prefix_record_count,
 			      join->best_positions[j-1].records_out);
-
+      set_if_bigger(prefix_count, 1.0);
+    }
     join->best_positions[j].prefix_record_count= prefix_count;
   }
 }
@@ -4038,6 +4046,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
                          FALSE, prefix_rec_count,
                          join->best_positions + i, &dummy);
         prefix_rec_count *= join->best_positions[i].records_out;
+        set_if_bigger(prefix_rec_count, 1.0);
         rem_tables &= ~join->best_positions[i].table->table->map;
       }
     }
@@ -4080,6 +4089,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
                             record_count, join->best_positions + idx, &dummy);
         }
         record_count *= join->best_positions[idx].records_out;
+        set_if_bigger(record_count, 1.0);
         rem_tables &= ~join->best_positions[idx].table->table->map;
       }
     }
@@ -4139,6 +4149,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
         }
         rem_tables &= ~join->best_positions[idx].table->table->map;
         record_count *= join->best_positions[idx].records_out;
+        set_if_bigger(record_count, 1.0);
       }
       first_pos->sj_strategy= SJ_OPT_LOOSE_SCAN;
       first_pos->n_sj_tables= my_count_bits(first_pos->table->emb_sj_nest->sj_inner_tables);
