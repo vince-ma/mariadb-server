@@ -662,12 +662,13 @@ public:
   bool show;
 
   Item_func_not_all(THD *thd, Item *a):
-    Item_func_not(thd, a), test_sum_item(0), test_sub_item(0), show(0)
-    {}
+    Item_func_not(thd, a), test_sum_item(0), test_sub_item(0), show(0) {}
   table_map not_null_tables() const { return 0; }
   longlong val_int();
   enum Functype functype() const { return NOT_ALL_FUNC; }
   const char *func_name() const { return "<not>"; }
+  enum precedence precedence() const
+  { return show ? Item_func::precedence() : args[0]->precedence(); }
   bool fix_fields(THD *thd, Item **ref)
     {return Item_func::fix_fields(thd, ref);}
   virtual void print(String *str, enum_query_type query_type);
