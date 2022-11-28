@@ -2,6 +2,7 @@
 #include <my_sys.h>
 #include "cli_utils.h"
 
+
 #ifdef _WIN32
 #include <windows.h>
 #define VOID void
@@ -116,8 +117,8 @@ static void credmgr_save_password(const char *target_name,
 */
 extern "C" MYSQL *cli_connect(MYSQL *mysql, const char *host, const char *user,
                    char **ppasswd, const char *db, unsigned int port,
-                   const char *unix_socket, unsigned long client_flag,
-                   my_bool tty_password)
+                   const char *unix_socket, unsigned long client_flag, my_bool tty_password, 
+                   my_bool allow_credmgr)
 {
   MYSQL *ret;
   bool use_tty_prompt= (*ppasswd == nullptr && tty_password);
@@ -128,7 +129,7 @@ extern "C" MYSQL *cli_connect(MYSQL *mysql, const char *host, const char *user,
                       unix_socket);
   bool use_credmgr_password= false;
   bool save_credmgr_password= getenv("MARIADB_CREDMGR_SAVE_PASSWORD") != nullptr;
-  if (!*ppasswd)
+  if (allow_credmgr && !*ppasswd)
   {
     save_credmgr_password = true;
     /* Interactive login or use credential manager if OS supports it.*/

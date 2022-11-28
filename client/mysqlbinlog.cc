@@ -1658,6 +1658,7 @@ end_skip_count:
   DBUG_RETURN(retval);
 }
 
+#include "credmgr-var.h"
 
 static struct my_option my_options[] =
 {
@@ -1937,6 +1938,7 @@ Example: rewrite-db='from->to'.",
    "Print metadata stored in Table_map_log_event",
    &opt_print_table_metadata, &opt_print_table_metadata, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+#include "credmgr-opt.h"
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -2639,7 +2641,7 @@ static Exit_status safe_connect()
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                  "program_name", "mysqlbinlog");
   if (!cli_connect(mysql, host, user, &pass, 0, port, sock,
-         0, tty_password))
+         0, tty_password,opt_credential_manager))
   {
     error("Failed on connect: %s", mysql_error(mysql));
     return ERROR_STOP;
