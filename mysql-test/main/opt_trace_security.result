@@ -127,8 +127,7 @@ select * from db1.t1	{
               "attached_conditions_computation": [],
               "attached_conditions_summary": [
                 {
-                  "table": "t1",
-                  "attached": null
+                  "table": "t1"
                 }
               ]
             }
@@ -256,8 +255,7 @@ select * from db1.v1	{
               "attached_conditions_computation": [],
               "attached_conditions_summary": [
                 {
-                  "table": "t1",
-                  "attached": null
+                  "table": "t1"
                 }
               ]
             }

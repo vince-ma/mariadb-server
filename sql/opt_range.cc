@@ -3919,10 +3919,17 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
 
   if (!part_info)
     DBUG_RETURN(FALSE); /* not a partitioned table */
-  
+
   if (!pprune_cond)
   {
     mark_all_partitions_as_used(part_info);
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object trace_wrapper(thd);
+      Json_writer_object trace_prune(thd, "prune_partitions");
+      trace_prune.add_table_name(table);
+      trace_prune.add("used_partitions", "ALL");
+    }
     DBUG_RETURN(FALSE);
   }
   
@@ -3940,6 +3947,13 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   if (create_partition_index_description(&prune_param))
   {
     mark_all_partitions_as_used(part_info);
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object trace_wrapper(thd);
+      Json_writer_object trace_prune(thd, "prune_partitions");
+      trace_prune.add_table_name(table);
+      trace_prune.add("used_partitions", "ALL");
+    }
     free_root(&alloc,MYF(0));		// Return memory & allocator
     DBUG_RETURN(FALSE);
   }
@@ -4073,6 +4087,19 @@ end:
     table->all_partitions_pruned_away= true;
     retval= TRUE;
   }
+
+  if (unlikely(thd->trace_started()))
+  {
+    String parts;
+    String_list parts_list;
+
+    make_used_partitions_str(thd->mem_root, prune_param.part_info, &parts, parts_list );
+    Json_writer_object trace_wrapper(thd);
+    Json_writer_object trace_prune(thd, "prune_partitions");
+    trace_prune.add_table_name(table);
+    trace_prune.add("used_partitions", parts.ptr());
+  }
+
   DBUG_RETURN(retval);
 }
 
