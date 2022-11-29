@@ -951,7 +951,7 @@ SELECT cn_n FROM cn WHERE (EXISTS (select 1 from ci where ci_p > 100000 and cn_c
   OR (cn_n LIKE 'L%') )
   AND cn_a > 1000000;
 
-select trace from information_schema.optimizer_trace into @trace;
+select trace into @trace from information_schema.optimizer_trace;
 select json_detailed(json_extract(@trace, '$.steps[*].join_optimization[0].steps[0].transformation'));
 
 drop table cn, ci, cl;
