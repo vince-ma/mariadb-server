@@ -3661,23 +3661,25 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
 
 void set_statistics_for_table(THD *thd, TABLE *table)
 {
-  if (!table->s->stats_cb)
-  {
-    /*
-      It's possible that stats_cb was not created due to lack of call of
-      alloc_table_share() which is normal for some specific tables like those
-      from INFORMATION_SCHEMA.
-    */
-    table->s->stats_cb=
-        Shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
-  }
-
   /*
     Make a copy of TABLE_SHARE::stats_cb shared pointer so there is no
     data race if another thread reloads the statistics while this function
     is running
   */
-  auto stats_cb= Shared_ptr<TABLE_STATISTICS_CB>(table->s->stats_cb);
+  Shared_ptr<TABLE_STATISTICS_CB> stats_cb;
+  if (table->s->stats_cb)
+  {
+    stats_cb= Shared_ptr<TABLE_STATISTICS_CB>(table->s->stats_cb);
+  }
+  else
+  {
+    /*
+      It's possible that TABLE_SHARE::stats_cb was not created due to lack
+      of call of alloc_table_share() which is normal for some specific tables
+      like those from INFORMATION_SCHEMA. Just create a new TABLE_STATISTICS_CB
+    */
+    stats_cb= Shared_ptr<TABLE_STATISTICS_CB>(new TABLE_STATISTICS_CB);
+  }
 
   Table_statistics *read_stats= stats_cb->table_stats;
   table->used_stat_records= 
