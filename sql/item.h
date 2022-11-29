@@ -2332,6 +2332,7 @@ public:
     If there is some, sets a bit for this key in the proper key map.
   */
   virtual bool check_index_dependence(void *arg) { return 0; }
+  virtual bool check_rownum_func_processor(void *arg) { return false; }
   /*============== End of Item processor list ======================*/
 
   /*

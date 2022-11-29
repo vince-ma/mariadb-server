@@ -2168,6 +2168,7 @@ public:
     return mark_unsupported_function(func_name(), "()", arg,
                                      VCOL_IMPOSSIBLE);
   }
+  bool check_rownum_func_processor(void *arg) override { return true; }
   Item *get_copy(THD *thd) override { return 0; }
   /* This function is used in insert, update and delete */
   void store_pointer_to_row_counter(ha_rows *row_counter)
