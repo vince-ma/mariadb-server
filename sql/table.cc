@@ -3294,7 +3294,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (engine_table_options_frm_read(options.str, options.length, share))
       goto err;
   }
-  if (parse_engine_table_options(thd, handler_file->partition_ht(), share))
+  if (parse_engine_table_options(thd,
+        share->default_part_plugin ? plugin_hton(share->default_part_plugin) :
+          handler_file->ht, share))
     goto err;
 
   if (share->found_next_number_field)

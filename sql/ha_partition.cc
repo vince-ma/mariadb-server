@@ -94,6 +94,14 @@ static uint partition_flags();
 static alter_table_operations alter_table_flags(alter_table_operations flags);
 
 
+/*
+int ha_partition::check_updates_are_ignored()
+{
+
+}
+*/
+
+
 int ha_partition::notify_tabledef_changed(LEX_CSTRING *db,
                                           LEX_CSTRING *org_table_name,
                                           LEX_CUSTRING *frm,

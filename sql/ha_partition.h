@@ -592,6 +592,8 @@ private:
   bool create_handler_file(const char *name);
   bool setup_engine_array(MEM_ROOT *mem_root, handlerton *first_engine);
   bool read_par_file(const char *name);
+  handlerton *partition_ht() const override
+  { return m_part_info->default_engine_type; }
   handlerton *get_def_part_engine(const char *name);
   bool get_from_handler_file(const char *name, MEM_ROOT *mem_root,
                              bool is_clone);
@@ -1597,7 +1599,6 @@ public:
 
     this can also be done before partition will support a mix of engines,
     but preferably together with other incompatible API changes.
-  */
   handlerton *partition_ht() const override
   {
     handlerton *h= m_file[0]->ht;
@@ -1605,6 +1606,7 @@ public:
       DBUG_ASSERT(h == m_file[i]->ht);
     return h;
   }
+  */
 
   bool partition_engine() override { return 1;}
 
