@@ -205,8 +205,8 @@ rtr_create_rtr_info(
 	bool		init_matches,	/*!< in: Whether to initiate the
 					"matches" structure for collecting
 					matched leaf records */
-	btr_cur_t*	cursor,		/*!< in: tree search cursor */
-	dict_index_t*	index);		/*!< in: index struct */
+	que_thr_t*	thr,		/*!< in/out: query thread */
+	btr_cur_t*	cursor);	/*!< in: tree search cursor */
 
 /********************************************************************//**
 Update a btr_cur_t with rtr_info */
@@ -297,10 +297,10 @@ Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. */
 bool
 rtr_pcur_open(
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,	/*!< in: memory buffer for persistent cursor */
+	que_thr_t*	thr,	/*!< in/out; query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((warn_unused_result));
 

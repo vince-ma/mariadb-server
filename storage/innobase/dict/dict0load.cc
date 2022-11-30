@@ -1125,7 +1125,7 @@ err_len:
 
 			prtype = dtype_form_prtype(
 				prtype,
-				data_mysql_default_charset_coll);
+				default_charset_info->number);
 		}
 	}
 

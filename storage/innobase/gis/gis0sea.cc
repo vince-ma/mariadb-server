@@ -34,7 +34,6 @@ Created 2014/01/16 Jimmy Yang
 #include "btr0pcur.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
-#include "ibuf0ibuf.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
 #include "que0que.h"
@@ -511,13 +510,13 @@ static void rtr_compare_cursor_rec(const rec_t *rec, dict_index_t *index,
 
 /**************************************************************//**
 Initializes and opens a persistent cursor to an index tree. It should be
-closed with btr_pcur_close. Mainly called by row_search_index_entry() */
+closed with btr_pcur_close. */
 bool
 rtr_pcur_open(
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	btr_latch_mode	latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
+	que_thr_t*	thr,	/*!< in/out; query thread */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	static_assert(BTR_MODIFY_TREE == (8 | BTR_MODIFY_LEAF), "");
@@ -534,15 +533,15 @@ rtr_pcur_open(
 	/* Search with the tree cursor */
 
 	btr_cur_t* btr_cursor = btr_pcur_get_btr_cur(cursor);
-	btr_cursor->page_cur.index = index;
+	dict_index_t* const index = cursor->index();
 
-	btr_cursor->rtr_info = rtr_create_rtr_info(false, false,
-						   btr_cursor, index);
+	btr_cursor->rtr_info = rtr_create_rtr_info(false, false, thr,
+						   btr_cursor);
 
 	/* Purge will SX lock the tree instead of take Page Locks */
-	if (btr_cursor->thr) {
+	if (thr) {
 		btr_cursor->rtr_info->need_page_lock = true;
-		btr_cursor->rtr_info->thr = btr_cursor->thr;
+		btr_cursor->rtr_info->thr = thr;
 	}
 
 	if ((latch_mode & 8) && index->lock.have_u_not_x()) {
@@ -666,7 +665,8 @@ static const rec_t* rtr_get_father_node(
 		rtr_clean_rtr_info(btr_cur->rtr_info, true);
 	}
 
-	btr_cur->rtr_info = rtr_create_rtr_info(false, false, btr_cur, index);
+	btr_cur->rtr_info = rtr_create_rtr_info(false, false, nullptr,
+						btr_cur);
 
 	if (btr_cur_search_to_nth_level(level, tuple,
 					PAGE_CUR_RTREE_LOCATE,
@@ -804,12 +804,12 @@ rtr_create_rtr_info(
 	bool		init_matches,	/*!< in: Whether to initiate the
 					"matches" structure for collecting
 					matched leaf records */
-	btr_cur_t*	cursor,		/*!< in: tree search cursor */
-	dict_index_t*	index)		/*!< in: index struct */
+	que_thr_t*	thr,		/*!< in/out: query thread */
+	btr_cur_t*	cursor)		/*!< in: tree search cursor */
 {
 	rtr_info_t*	rtr_info;
 
-	index = index ? index : cursor->index();
+	dict_index_t* index = cursor->index();
 	ut_ad(index);
 
 	rtr_info = static_cast<rtr_info_t*>(ut_zalloc_nokey(sizeof(*rtr_info)));
@@ -817,6 +817,7 @@ rtr_create_rtr_info(
 	rtr_info->allocated = true;
 	rtr_info->cursor = cursor;
 	rtr_info->index = index;
+	rtr_info->thr = thr;
 
 	if (init_matches) {
 		rtr_info->heap = mem_heap_create(sizeof(*(rtr_info->matches)));

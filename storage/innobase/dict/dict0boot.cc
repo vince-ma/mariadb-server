@@ -420,9 +420,10 @@ dberr_t dict_boot()
 
 	mtr.commit();
 
-	err = ibuf_init_at_db_start();
+	err = ibuf_cleanup();
 
-	if (err == DB_SUCCESS || srv_force_recovery >= SRV_FORCE_NO_DDL_UNDO) {
+	if (err == DB_SUCCESS
+	    || srv_force_recovery >= SRV_FORCE_NO_UNDO_LOG_SCAN) {
 		err = DB_SUCCESS;
 		/* Load definitions of other indexes on system tables */
 

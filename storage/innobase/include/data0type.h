@@ -33,7 +33,6 @@ Created 1/16/1996 Heikki Tuuri
 /** @return whether a length is actually stored in a field */
 #define len_is_stored(len) (len != UNIV_SQL_NULL && len != UNIV_SQL_DEFAULT)
 
-extern ulint	data_mysql_default_charset_coll;
 #define DATA_MYSQL_BINARY_CHARSET_COLL 63
 
 /* SQL data type struct */
@@ -344,13 +343,11 @@ charset-collation code.
 				DATA_BINARY_TYPE etc.
 @param[in]	charset_coll	character-set collation code
 @return precise type, including the charset-collation code */
-UNIV_INLINE
-uint32_t
-dtype_form_prtype(ulint old_prtype, ulint charset_coll)
+inline uint32_t dtype_form_prtype(ulint old_prtype, ulint charset_coll)
 {
-	ut_ad(old_prtype < 256 * 256);
-	ut_ad(charset_coll <= MAX_CHAR_COLL_NUM);
-	return(uint32_t(old_prtype + (charset_coll << 16)));
+  ut_ad(old_prtype <= 0xffff);
+  ut_ad(charset_coll <= MAX_CHAR_COLL_NUM);
+  return uint32_t(old_prtype | (charset_coll << 16));
 }
 
 /*********************************************************************//**
@@ -440,15 +437,6 @@ dtype_get_sql_null_size(
 	ulint		comp);	/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 
 /**********************************************************************//**
-Reads to a type the stored information which determines its alphabetical
-ordering and the storage size of an SQL NULL value. */
-UNIV_INLINE
-void
-dtype_read_for_order_and_null_size(
-/*===============================*/
-	dtype_t*	type,	/*!< in: type struct */
-	const byte*	buf);	/*!< in: buffer for the stored order info */
-/**********************************************************************//**
 Stores for a type the information which determines its alphabetical ordering
 and the storage size of an SQL NULL value. This is the >= 4.1.x storage
 format. */
@@ -462,16 +450,6 @@ dtype_new_store_for_order_and_null_size(
 	const dtype_t*	type,	/*!< in: type struct */
 	ulint		prefix_len);/*!< in: prefix length to
 				replace type->len, or 0 */
-/**********************************************************************//**
-Reads to a type the stored information which determines its alphabetical
-ordering and the storage size of an SQL NULL value. This is the 4.1.x storage
-format. */
-UNIV_INLINE
-void
-dtype_new_read_for_order_and_null_size(
-/*===================================*/
-	dtype_t*	type,	/*!< in: type struct */
-	const byte*	buf);	/*!< in: buffer for stored type order info */
 
 /*********************************************************************//**
 Validates a data type structure.
@@ -494,8 +472,6 @@ struct dict_col_t;
 If you add fields to this structure, be sure to initialize them everywhere.
 This structure is initialized in the following functions:
 dtype_set()
-dtype_read_for_order_and_null_size()
-dtype_new_read_for_order_and_null_size()
 sym_tab_add_null_lit() */
 
 struct dtype_t{

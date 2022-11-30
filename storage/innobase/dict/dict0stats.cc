@@ -582,8 +582,6 @@ dict_stats_table_clone_create(
 			continue;
 		}
 
-		ut_ad(!dict_index_is_ibuf(index));
-
 		ulint	n_uniq = dict_index_get_n_unique(index);
 
 		heap_size += sizeof(dict_index_t);
@@ -631,8 +629,6 @@ dict_stats_table_clone_create(
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
 		}
-
-		ut_ad(!dict_index_is_ibuf(index));
 
 		dict_index_t*	idx;
 
@@ -712,7 +708,6 @@ dict_stats_empty_index(
 				/*!< in: whether to empty defrag stats */
 {
 	ut_ad(!(index->type & DICT_FTS));
-	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(index->table->stats_mutex_is_owner());
 
 	ulint	n_uniq = index->n_uniq;
@@ -764,8 +759,6 @@ dict_stats_empty_table(
 		if (index->type & DICT_FTS) {
 			continue;
 		}
-
-		ut_ad(!dict_index_is_ibuf(index));
 
 		dict_stats_empty_index(index, empty_defrag_stats);
 	}
@@ -898,8 +891,6 @@ dict_stats_copy(
 				continue;
 			}
 		}
-
-		ut_ad(!dict_index_is_ibuf(dst_idx));
 
 		if (!INDEX_EQ(src_idx, dst_idx)) {
 			for (src_idx = dict_table_get_first_index(src);
@@ -1079,6 +1070,133 @@ btr_record_not_null_field_in_rec(
 	}
 }
 
+/**********************************************************************//**
+Positions a cursor at a randomly chosen position within a B-tree.
+@return true if the index is available and we have put the cursor, false
+if the index is unavailable */
+static bool
+btr_cur_open_at_rnd_pos(
+	dict_index_t*	index,		/*!< in: index */
+	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
+	mtr_t*		mtr)		/*!< in: mtr */
+{
+	page_cur_t*	page_cursor;
+	ulint		height;
+	rec_t*		node_ptr;
+	buf_block_t*	tree_blocks[BTR_MAX_LEVELS];
+	ulint		tree_savepoints[BTR_MAX_LEVELS];
+	ulint		n_blocks = 0;
+	ulint		n_releases = 0;
+	mem_heap_t*	heap		= NULL;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
+	rec_offs_init(offsets_);
+
+	ut_ad(!index->is_spatial());
+
+	ulint savepoint = mtr_set_savepoint(mtr);
+
+	mtr_s_lock_index(index, mtr);
+
+	if (index->page == FIL_NULL) {
+		/* Since we don't hold index lock until just now, the index
+		could be modified by others, for example, if this is a
+		statistics updater for referenced table, it could be marked
+		as unavailable by 'DROP TABLE' in the mean time, since
+		we don't hold lock for statistics updater */
+		return(false);
+	}
+
+	page_cursor = btr_cur_get_page_cur(cursor);
+	page_cursor->index = index;
+
+	page_id_t		page_id(index->table->space_id, index->page);
+	const ulint		zip_size = index->table->space->zip_size();
+	dberr_t			err;
+
+	height = ULINT_UNDEFINED;
+
+	for (;;) {
+		page_t*		page;
+
+		ut_ad(n_blocks < BTR_MAX_LEVELS);
+		tree_savepoints[n_blocks] = mtr_set_savepoint(mtr);
+
+		const rw_lock_type_t rw_latch = height
+			? RW_S_LATCH : RW_NO_LATCH;
+		buf_block_t* block = buf_page_get_gen(page_id, zip_size,
+						      rw_latch, NULL, BUF_GET,
+						      mtr, &err);
+		tree_blocks[n_blocks] = block;
+
+		ut_ad((block != NULL) == (err == DB_SUCCESS));
+
+		if (!block) {
+			if (err == DB_DECRYPTION_FAILED) {
+				btr_decryption_failed(*index);
+			}
+
+			break;
+		}
+
+		page = buf_block_get_frame(block);
+
+		ut_ad(fil_page_index_page_check(page));
+		ut_ad(index->id == btr_page_get_index_id(page));
+
+		if (height == ULINT_UNDEFINED) {
+			/* We are in the root node */
+
+			height = btr_page_get_level(page);
+		}
+
+		if (height == 0) {
+			/* btr_cur_t::open_leaf() and
+			btr_cur_search_to_nth_level() release
+			tree s-latch here.*/
+			/* Release the tree s-latch */
+			mtr_release_s_latch_at_savepoint(
+				mtr, savepoint, &index->lock);
+
+			/* release upper blocks */
+			for (; n_releases < n_blocks; n_releases++) {
+				mtr_release_block_at_savepoint(
+					mtr,
+					tree_savepoints[n_releases],
+					tree_blocks[n_releases]);
+			}
+		}
+
+		page_cursor->block = block;
+		page_cur_open_on_rnd_user_rec(page_cursor);
+
+		if (height == 0) {
+
+			break;
+		}
+
+		ut_ad(height > 0);
+
+		height--;
+
+		node_ptr = page_cur_get_rec(page_cursor);
+		offsets = rec_get_offsets(node_ptr, page_cursor->index,
+					  offsets, 0, ULINT_UNDEFINED, &heap);
+
+		/* Go to the child node */
+		page_id.set_page_no(
+			btr_node_ptr_get_child_page_no(node_ptr, offsets));
+
+		n_blocks++;
+	}
+
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
+
+	return err == DB_SUCCESS;
+}
+
 /** Estimated table level stats from sampled value.
 @param value sampled stats
 @param index index being sampled
@@ -1226,8 +1344,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 	for (ulint i = 0; i < n_sample_pages; i++) {
 		mtr.start();
 
-		if (!btr_cur_open_at_rnd_pos(index, BTR_SEARCH_LEAF,
-					     &cursor, &mtr)
+		if (!btr_cur_open_at_rnd_pos(index, &cursor, &mtr)
 		    || index->table->bulk_trx_id != bulk_trx_id
 		    || !index->is_readable()) {
 			mtr.commit();
@@ -1407,10 +1524,6 @@ dummy_empty:
 		dict_stats_empty_index(index, false);
 		index->table->stats_mutex_unlock();
 		return err;
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-	} else if (ibuf_debug && !dict_index_is_clust(index)) {
-		goto dummy_empty;
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else if (dict_index_is_online_ddl(index) || !index->is_committed()
 		   || !index->table->space) {
 		goto dummy_empty;
@@ -1516,9 +1629,6 @@ empty_table:
 	}
 
 	for (; index != NULL; index = dict_table_get_next_index(index)) {
-
-		ut_ad(!dict_index_is_ibuf(index));
-
 		if (!index->is_btree()) {
 			continue;
 		}
@@ -1583,9 +1693,7 @@ static dberr_t page_cur_open_level(page_cur_t *page_cur, ulint level,
 
   for (ulint height = ULINT_UNDEFINED;; height--)
   {
-    buf_block_t* block=
-      btr_block_get(*index, page, RW_S_LATCH,
-                    !height && !index->is_clust(), mtr, &err);
+    buf_block_t* block= btr_block_get(*index, page, RW_S_LATCH, mtr, &err);
     if (!block)
       break;
 
@@ -2203,9 +2311,7 @@ dict_stats_analyze_index_below_cur(
 
 		block = buf_page_get_gen(page_id, zip_size,
 					 RW_S_LATCH, NULL, BUF_GET,
-					 &mtr, &err,
-					 !index->is_clust()
-					 && 1 == btr_page_get_level(page));
+					 &mtr, &err);
 		if (!block) {
 			goto func_exit;
 		}
@@ -2944,7 +3050,6 @@ dict_stats_update_persistent(
 		return(DB_CORRUPTION);
 	}
 
-	ut_ad(!dict_index_is_ibuf(index));
 	table->stats_mutex_lock();
 	dict_stats_empty_index(index, false);
 	table->stats_mutex_unlock();
@@ -3317,8 +3422,6 @@ unlocked_free_and_exit:
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
 		}
-
-		ut_ad(!dict_index_is_ibuf(index));
 
 		for (unsigned i = 0; i < index->n_uniq; i++) {
 

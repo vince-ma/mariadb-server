@@ -13,3 +13,5 @@
 rtree_concurrent_srch : MDEV-15284 COUNT(*) mismatch
 rtree_recovery : MDEV-15284 COUNT(*) mismatch
 rtree_compress2 : MDEV-16269 CHECK TABLE reports wrong count
+point_big: btr_discard_page() in purge fails to discard locks(?)
+rtree_purge: tried to purge non-delete-marked record, and SIGSEGV

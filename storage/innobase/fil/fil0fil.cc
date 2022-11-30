@@ -45,7 +45,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0purge.h"
 #include "buf0lru.h"
-#include "ibuf0ibuf.h"
 #include "buf0flu.h"
 #include "log.h"
 #ifdef __linux__
@@ -1605,7 +1604,6 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
     fil_space_free_low(space);
   }
 
-  ibuf_delete_for_discarded_space(id);
   return handle;
 }
 
@@ -2746,10 +2744,6 @@ write_completed:
   {
     ut_ad(request.is_read());
 
-    /* IMPORTANT: since i/o handling for reads will read also the insert
-    buffer in fil_system.sys_space, we have to be very careful not to
-    introduce deadlocks. We never close fil_system.sys_space data
-    files and never issue asynchronous reads of change buffer pages. */
     const page_id_t id(request.bpage->id());
 
     if (dberr_t err= request.bpage->read_complete(*request.node))
