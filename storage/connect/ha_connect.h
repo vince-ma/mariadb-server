@@ -281,7 +281,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_keys()          const { return 100; }
+  uint max_supported_keys()          const { return MAX_KEY; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -292,7 +292,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-  uint max_supported_key_parts()     const { return 100; }
+  uint max_supported_key_parts()     const { return MAX_REF_PARTS; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
