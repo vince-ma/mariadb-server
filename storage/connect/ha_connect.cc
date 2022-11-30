@@ -1173,7 +1173,8 @@ ulonglong ha_connect::table_flags() const
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
-                     HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN |
+//                   HA_NO_BLOBS |
+                     HA_MUST_USE_TABLE_CONDITION_PUSHDOWN |
                      HA_REUSES_FILE_NAMES;
   ha_connect *hp= (ha_connect*)this;
   PTOS        pos= hp->GetTableOptionStruct();
@@ -6706,7 +6707,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(rc);
       } // endif flags
 
-    if (fp->flags & (BLOB_FLAG | ENUM_FLAG | SET_FLAG)) {
+    if (fp->flags & (ENUM_FLAG | SET_FLAG)) {
       snprintf(g->Message, sizeof(g->Message), "Unsupported type for column %s",
                           fp->field_name.str);
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -6742,6 +6743,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_VARCHAR:
       case MYSQL_TYPE_VAR_STRING:
       case MYSQL_TYPE_STRING:
+      case MYSQL_TYPE_TINY_BLOB:
+      case MYSQL_TYPE_MEDIUM_BLOB:
+      case MYSQL_TYPE_LONG_BLOB:
+      case MYSQL_TYPE_BLOB:
 #if 0
         if (!fp->field_length) {
           snprintf(g->Message, sizeof(g->Message), "Unsupported 0 length for column %s",
@@ -6758,10 +6763,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_NULL:
       case MYSQL_TYPE_ENUM:
       case MYSQL_TYPE_SET:
-      case MYSQL_TYPE_TINY_BLOB:
-      case MYSQL_TYPE_MEDIUM_BLOB:
-      case MYSQL_TYPE_LONG_BLOB:
-      case MYSQL_TYPE_BLOB:
       case MYSQL_TYPE_GEOMETRY:
       default:
 //      fprintf(stderr, "Unsupported type column %s\n", fp->field_name.str);
